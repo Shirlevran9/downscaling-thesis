@@ -1,0 +1,15 @@
+# Data files — too large for GitHub, kept locally only
+data/
+*.nc
+*.grib
+*.grib2
+*.h5
+*.hdf5
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
