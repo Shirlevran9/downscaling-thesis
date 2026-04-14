@@ -52,6 +52,7 @@ The actual spatial extents extracted from the NetCDF files are reported in `note
 | 25th percentile | 12.7 | 15.0 |
 | Median (50th percentile) | 20.1 | 21.2 |
 | Mean | 19.2 | 20.8 |
+| Std deviation | 8.7 | 7.9 |
 | 75th percentile | 26.3 | 27.0 |
 | 90th percentile | 29.7 | 31.1 |
 | Maximum | 40.6 | 41.5 |
