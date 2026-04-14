@@ -42,6 +42,7 @@ __all__ = [
     "plot_domain_range_timeseries",
     "plot_monthly_climatology",
     "plot_temperature_distributions",
+    "plot_temperature_percentiles",
     "plot_pixel_assignment_map",
     "plot_pixels_per_cell_heatmap",
     "plot_scatter_regression",
@@ -993,6 +994,93 @@ def plot_temperature_distributions(
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path)
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Percentile distribution plot (Main Statistics)
+# ---------------------------------------------------------------------------
+
+def plot_temperature_percentiles(
+    era5_flat: np.ndarray,
+    cmip_flat: np.ndarray,
+    percentiles: tuple | list = (25, 50, 75, 90),
+    save_path: str | Path = None,
+) -> plt.Figure:
+    """Density histogram comparing ERA5-Land and CMIP6 temperature distributions
+    with explicit percentile markers.
+
+    Uses numpy histograms for efficiency with large (>10 M) arrays.
+    Percentile lines are annotated with labels positioned at two distinct
+    y-fractions so ERA5-Land and CMIP6 labels do not overlap.
+
+    Parameters
+    ----------
+    era5_flat : np.ndarray
+        1-D array of ERA5-Land land-pixel temperatures in °C.
+    cmip_flat : np.ndarray
+        1-D array of CMIP6 cell temperatures in °C.
+    percentiles : tuple or list
+        Percentile values to mark (e.g. (25, 50, 75, 90)).
+    save_path : str or Path, optional
+        Output file path.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    _c_era5 = "#1f77b4"   # tab10 blue
+    _c_cmip  = "#ff7f0e"  # tab10 orange
+
+    datasets = [
+        ("ERA5-Land (0.1°)", era5_flat, _c_era5),
+        ("CMIP6 (~1°)",      cmip_flat,  _c_cmip),
+    ]
+
+    # Shared bin edges over the combined temperature range
+    combined = np.concatenate([
+        era5_flat[np.isfinite(era5_flat)],
+        cmip_flat[np.isfinite(cmip_flat)],
+    ])
+    bins = np.linspace(np.nanmin(combined), np.nanmax(combined), 300)
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    for label, vals, color in datasets:
+        clean = vals[np.isfinite(vals)]
+        counts, edges = np.histogram(clean, bins=bins, density=True)
+        centers = (edges[:-1] + edges[1:]) / 2
+        ax.plot(centers, counts, lw=1.8, color=color, label=label)
+        ax.fill_between(centers, counts, alpha=0.15, color=color)
+
+    # Percentile vertical lines — ERA5 labels near top, CMIP6 slightly lower
+    # transform=get_xaxis_transform() → x in data coords, y in axes fraction
+    label_y = {0: 0.96, 1: 0.83}   # y-fraction per dataset index
+    for i_ds, (label, vals, color) in enumerate(datasets):
+        clean = vals[np.isfinite(vals)]
+        pct_vals = np.percentile(clean, percentiles)
+        y_frac = label_y[i_ds]
+        for p, pval in zip(percentiles, pct_vals):
+            ax.axvline(pval, color=color, lw=0.9, linestyle="--", alpha=0.8)
+            ax.text(
+                pval, y_frac,
+                f"P{p}",
+                ha="center", va="top",
+                fontsize=7.5, color=color,
+                transform=ax.get_xaxis_transform(),
+            )
+
+    ax.set_xlabel("2 m temperature (°C)", fontsize=10)
+    ax.set_ylabel("Probability density", fontsize=10)
+    ax.set_title(
+        "Daily 2 m temperature distribution, 1990–1999 — with key percentiles",
+        fontsize=12,
+    )
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    ax.legend(framealpha=0.85)
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=200)
     return fig
 
 

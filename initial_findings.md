@@ -32,6 +32,8 @@ The actual spatial extents extracted from the NetCDF files are reported in `note
 
 ## 3. Main Statistics
 
+**Dataset overview**
+
 | Metric | Value |
 |---|---|
 | Study domain | 24–38°N, 30–38°E |
@@ -39,10 +41,26 @@ The actual spatial extents extracted from the NetCDF files are reported in `note
 | ERA5-Land land pixels | 7,683 |
 | CMIP6 cells in domain | 97 |
 | Total pixel × day pairs | ~28,000,000 |
-| ERA5-Land mean T2M | 19.2°C |
-| CMIP6 mean TAS | 20.5°C |
-| Missing data fraction | 32.7% (land–sea mask, static) |
+| Missing / ocean fraction | 32.7% (land–sea mask, static) |
 | Pearson *r* (cell-level) | ≈ 0.9 |
+
+**Descriptive statistics — temperature distribution (°C)**
+
+| Statistic | ERA5-Land T2M | CMIP6 TAS |
+|---|---|---|
+| Minimum | −21.3 | −14.7 |
+| 25th percentile | 12.7 | 15.0 |
+| Median (50th percentile) | 20.1 | 21.2 |
+| Mean | 19.2 | 20.8 |
+| 75th percentile | 26.3 | 27.0 |
+| 90th percentile | 29.7 | 31.1 |
+| Maximum | 40.6 | 41.5 |
+
+ERA5-Land statistics are computed over land pixels only (ocean = NaN); CMIP6 statistics cover all grid cells in the subsetted domain. The CMIP6 distribution is shifted ~1–2°C warmer than ERA5-Land across all quantiles. Both distributions are negatively skewed relative to a normal distribution (mean < median), reflecting the asymmetric thermal gradient between the hot Arabian Peninsula and the cooler northern highlands. The 90th–75th percentile gap (~3.4°C for ERA5-Land) is narrower than the 25th–minimum gap (~34°C), confirming a long lower tail driven by high-altitude winter pixels.
+
+![Fig. 2a](plots/fig02a_temperature_distribution.png)
+
+**Fig. 2a.** Daily 2 m temperature distribution for ERA5-Land (blue, land pixels only) and CMIP6 CESM2-WACCM (orange, all domain cells), 1990–1999. Curves show probability density estimated from all pixel × day values. Dashed vertical lines mark the 25th, 50th, 75th, and 90th percentiles for each dataset. Data: ERA5-Land T2M and CMIP6 TAS, 24–38°N, 30–38°E.
 
 ---
 
