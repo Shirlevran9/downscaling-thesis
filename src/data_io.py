@@ -347,8 +347,8 @@ def build_paired_dataframe(
             "cmip_lat": np.tile(cmip_lat_grid[land_rows, land_cols], n_time),
             "cmip_lon": np.tile(cmip_lon_grid[land_rows, land_cols], n_time),
             "day": np.repeat(dates, n_land),
-            "t2m": era5_vals.ravel(order="F"),
-            "tas": cmip_vals.ravel(order="F"),
+            "t2m": era5_vals.ravel(),
+            "tas": cmip_vals.ravel(),
         }
     ).dropna(subset=["t2m"])
 
