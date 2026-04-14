@@ -107,6 +107,12 @@ The monthly climatology (Fig. 3b) summarises the seasonal cycle and confirms tha
 
 **Fig. 3b.** Monthly mean 2 m temperature climatology, 1990–1999. Each point represents the multi-year mean for that calendar month. Data: ERA5-Land T2M and CMIP6 CESM2-WACCM TAS, 24–38°N, 30–38°E.
 
+Aggregating further to annual means (Fig. 3c) reduces each dataset to 10 data points and makes year-to-year variability directly visible without the masking effect of the seasonal cycle.
+
+![Fig. 3c](plots/fig03c_yearly_mean.png)
+
+**Fig. 3c.** Annual mean domain-averaged 2 m temperature, 1990–1999. Each point represents the area-averaged temperature for one calendar year, giving 10 data points per dataset. The CMIP6 CESM2-WACCM model is consistently warmer than ERA5-Land by approximately 1–2°C in every year of the record. Data: ERA5-Land T2M and CMIP6 TAS, 24–38°N, 30–38°E.
+
 ### 5.2 Spatial variation
 
 The mean 2 m temperature climatology (1990–1999) reveals a clear north–south thermal gradient (Fig. 2). The highest mean temperatures occur over the Arabian Peninsula (~35–40°C), and the lowest over the highlands of Turkey and the Levant (~5–15°C). Coastal and topographically complex areas exhibit pronounced spatial variability in ERA5-Land that is not resolved at the CMIP6 grid scale.
