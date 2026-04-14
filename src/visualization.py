@@ -50,6 +50,8 @@ __all__ = [
     "compute_ols_residuals",
     "plot_residuals_by_sea_fraction",
     "plot_residuals_by_pixel_count",
+    "plot_residuals_by_season",
+    "plot_residuals_by_month",
     "plot_quarterly_warming_trend",
 ]
 
@@ -1400,6 +1402,7 @@ def compute_ols_residuals(paired_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({
         "cmip_lat": paired_df.loc[mask, "cmip_lat"].values,
         "cmip_lon": paired_df.loc[mask, "cmip_lon"].values,
+        "day": paired_df.loc[mask, "day"].values,
         "residual": resid,
     })
 
@@ -1578,6 +1581,84 @@ def plot_residuals_by_pixel_count(
         title=title,
         xlabel="Land-pixel count of assigned CMIP6 cell",
     )
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=200)
+    return fig
+
+
+def plot_residuals_by_season(
+    resid_df: pd.DataFrame,
+    title: str = "OLS residual distribution by season, 1990–1999",
+    save_path=None,
+) -> plt.Figure:
+    """Box plots of pixel×day OLS residuals grouped by meteorological season.
+
+    Parameters
+    ----------
+    resid_df : pd.DataFrame
+        Output of :func:`compute_ols_residuals`.  Must contain ``day``
+        and ``residual`` columns.
+    title : str
+        Figure title.
+    save_path : str or Path, optional
+        If provided, saves the figure at 200 dpi.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    days = pd.to_datetime(resid_df["day"])
+    month = days.dt.month
+    season_map = {
+        12: "DJF", 1: "DJF", 2: "DJF",
+        3: "MAM", 4: "MAM", 5: "MAM",
+        6: "JJA", 7: "JJA", 8: "JJA",
+        9: "SON", 10: "SON", 11: "SON",
+    }
+    season = month.map(season_map)
+    seasons = ["DJF", "MAM", "JJA", "SON"]
+    groups = [resid_df.loc[season == s, "residual"].values for s in seasons]
+    tick_labels = [f"{s}\n(n={len(g):,})" for s, g in zip(seasons, groups)]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    _draw_residual_boxplot(ax, groups, tick_labels, title=title, xlabel="Season")
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=200)
+    return fig
+
+
+def plot_residuals_by_month(
+    resid_df: pd.DataFrame,
+    title: str = "OLS residual distribution by month, 1990–1999",
+    save_path=None,
+) -> plt.Figure:
+    """Box plots of pixel×day OLS residuals grouped by calendar month.
+
+    Parameters
+    ----------
+    resid_df : pd.DataFrame
+        Output of :func:`compute_ols_residuals`.  Must contain ``day``
+        and ``residual`` columns.
+    title : str
+        Figure title.
+    save_path : str or Path, optional
+        If provided, saves the figure at 200 dpi.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    days = pd.to_datetime(resid_df["day"])
+    month = days.dt.month
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    groups = [resid_df.loc[month == m, "residual"].values for m in range(1, 13)]
+    tick_labels = [f"{mn}\n(n={len(g):,})" for mn, g in zip(month_names, groups)]
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+    _draw_residual_boxplot(ax, groups, tick_labels, title=title, xlabel="Month")
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, bbox_inches="tight", dpi=200)

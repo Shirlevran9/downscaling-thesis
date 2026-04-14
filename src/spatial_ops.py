@@ -251,9 +251,12 @@ def pixel_count_stats(assignment_df: pd.DataFrame) -> dict:
         "n_cells": len(counts),
         "n_land_pixels": int(counts.sum()),
         "mean": float(counts.mean()),
-        "median": float(counts.median()),
         "std": float(counts.std()),
         "min": int(counts.min()),
+        "p25": float(counts.quantile(0.25)),
+        "median": float(counts.median()),
+        "p75": float(counts.quantile(0.75)),
+        "p90": float(counts.quantile(0.90)),
         "max": int(counts.max()),
     }
 
