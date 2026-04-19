@@ -348,29 +348,38 @@ Figure captions must follow this structure:
 
 ## 8. Residual Analysis Checklist
 
-After fitting any regression model (linear or otherwise):
+After fitting any regression model (linear or otherwise), all diagnostics
+must be performed on **standardised residuals** (raw residual divided by
+residual standard deviation), because raw residuals are heteroscedastic by
+definition when the variance changes with the predictor.
 
-1. **Homoscedasticity**: plot residuals vs. predicted values or predictor
-   values. A homogeneous horizontal band around zero indicates constant error
+1. **Homoscedasticity**: plot standardised residuals vs. predictor values.
+   A homogeneous horizontal band around zero indicates constant error
    variance. Funnel-shaped spread indicates heteroscedasticity.
 
-2. **Spatial dependency**: plot residuals vs. Euclidean distance from the
-   assigned coarse-grid cell centre. A non-zero trend indicates that
-   boundary-assignment artefacts inflate errors for pixels far from the cell
-   centre.
+2. **Linearity**: plot standardised residuals vs. each predictor.
+   Systematic curvature suggests a missing non-linear term.
 
-3. **Temporal autocorrelation**: compute the autocorrelation function (ACF)
-   of daily domain-mean residuals. Significant autocorrelation at lag 1
-   indicates temporal structure not captured by the predictor.
+3. **Independence in time**: compute the autocorrelation function (ACF) and
+   partial ACF (PACF) of domain-mean standardised residuals. Report the
+   Durbin–Watson statistic (values near 2 indicate no autocorrelation).
 
-4. **Seasonal stratification**: compute mean residual by season (DJF/MAM/
+4. **Independence in space**: compute Moran's I statistic on the spatial
+   field of mean standardised residuals. A spatial ACF map (mean residual
+   per pixel plotted geographically) can identify clustering patterns.
+
+5. **Normality**: plot a histogram of standardised residuals with a Gaussian
+   overlay. Apply the Shapiro–Wilk test (small samples) or
+   Kolmogorov–Smirnov test (large samples).
+
+6. **Seasonal stratification**: compute mean residual by season (DJF/MAM/
    JJA/SON). Season-dependent bias indicates that a single global model
-   cannot capture the full seasonal variability; a season-specific or
-   seasonally-stratified model may be needed.
+   cannot capture the full seasonal variability.
 
-5. **Spatial map of residuals**: compute mean residual per ERA5-Land pixel
-   and plot as a spatial map. Systematic spatial patterns suggest unresolved
-   topographic or land-cover effects.
+7. **Spatial map of residuals**: compute mean residual per ERA5-Land pixel
+   and plot as a spatial map alongside the mean T2M map for context.
+   Systematic spatial patterns suggest unresolved topographic or land-cover
+   effects.
 
 ---
 
@@ -496,3 +505,89 @@ The notebook follows this section structure:
 | 5 | Pairing Mechanism |
 | 6 | Coarse–Fine Temperature Relationship |
 | 7 | Feature Engineering Preview *(WIP)* |
+
+---
+
+## 10. Scientific Document Structure
+
+Statistical downscaling reports and papers follow the IMRaD structure.
+Each section has a distinct purpose; do not mix content across sections.
+
+| Section | Content |
+|---|---|
+| **Introduction** | Scientific background and motivation; literature review with citations; research question and objectives |
+| **Methods** | Data description, domain definition, preprocessing steps; CMIP6–ERA5 pairing methodology; sea-fraction definition; global daily mean computation; variable definitions; statistical models and algorithms |
+| **Results** | Concise description of findings, supported by figures and tables; no causal interpretation or speculation; all figures and tables must be referenced in the text |
+| **Discussion** | Interpretation of findings; comparison with prior work; limitations of the analysis; conclusions and future directions |
+
+**Note for this project:** the following topics currently scattered in the
+notebook should appear in Methods, not Results: the CMIP6–ERA5 spatial
+linking method, the definition of sea fraction per CMIP6 cell, and the
+computation of the global daily area-weighted mean.
+
+---
+
+## 11. Writing Style
+
+Scientific writing in climate and statistics journals is dry, precise, and
+concise. Apply the following rules consistently:
+
+- **No dramatic adjectives.** Avoid "near perfect", "excellent",
+  "remarkably", "surprisingly". Let numbers speak.
+- **No bold font within sentences.** Bold is reserved for section headings
+  and table/figure labels. Do not emphasise words in running text.
+- **Results refer to variables, not datasets.** Write "TAS shows a warm bias
+  of ~1.5°C" rather than "CMIP6 shows …".
+- **Hedged explanations.** When proposing a mechanism, write "this may be
+  explained by …" or "a plausible factor is …". Do not claim to enumerate
+  all causes unless you have tested them.
+- **Trust the heading.** Do not begin a section with a long sentence
+  explaining what the section will cover. The heading does that job.
+- **Simple sentences.** Prefer two short sentences over one complex compound
+  sentence. Avoid repetition of the same message across consecutive
+  sentences.
+- **Monotonicity claims.** Describe patterns accurately. If a trend exists
+  but is not strictly monotonic, note the exceptions rather than stating a
+  blanket conclusion.
+
+---
+
+## 12. Figure and Caption Standards (Additions)
+
+The following rules supplement §7 (Figure Caption Standard) and §8.1:
+
+- **No double-hierarchy numbering.** Figures are numbered Fig. 1, Fig. 2, …
+  with sub-panels labelled (a), (b), (c), (d). The notation "Fig1a1" is
+  prohibited.
+- **One figure per topic.** Never split a single multi-panel figure across
+  different content sections of the document.
+- **Self-contained captions.** A reader must be able to understand what the
+  figure shows without consulting the running text. Include dataset,
+  variable, period, and a brief description of each panel.
+- **No interpretation in the figure title.** The title should describe what
+  is displayed (e.g. "OLS residual distribution by CMIP6 cell sea fraction")
+  not what it means (e.g. "coastal cells produce larger errors").
+- **Readable font sizes.** Axis labels, tick labels, and legend text must
+  remain legible after the figure is reduced to a single column width
+  (~8 cm). Set these at or above the values in `src/vis_constants.py`.
+- **Maps: coarse-grid overlay.** Where the fine-resolution field is plotted,
+  overlay the CMIP6 (~1°) cell boundaries to visualise the resolution
+  mismatch. Use `show_coarse_grid=True` in the spatial plot functions.
+
+---
+
+## 13. Table Formatting Standards
+
+- **Uniform decimal format.** All numbers for the same variable must use the
+  same number of decimal places (e.g. one decimal place for temperatures).
+  Do not mix "19.2" and "20" in the same column.
+- **Units in headers, not cells.** Place the unit in the column or row
+  header (e.g. "Mean (°C)"). Never write "19.2 °C" in an individual cell.
+- **Variable rows, statistic columns.** For descriptive statistics tables,
+  each row is a variable and each column is a statistic.
+- **Column order (moments first, then quantiles):**
+  Mean → Std Dev → Median → IQR (or P25, P75) → Min → Max
+- **In-text reporting.** When citing a single statistic in the text, always
+  pair a central measure with a dispersion measure:
+  - Mean ± standard deviation: "19.2 ± 7.8°C"
+  - Median [IQR]: "19.8 [10.2–28.4]°C"

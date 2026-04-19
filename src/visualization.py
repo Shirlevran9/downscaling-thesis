@@ -21,12 +21,17 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib.dates as mdates
+import matplotlib.gridspec as gridspec
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
 import seaborn as sns
 import xarray as xr
+
+from . import vis_constants as VC
 
 __all__ = [
     "apply_map_formatting",
@@ -53,23 +58,24 @@ __all__ = [
     "plot_residuals_by_season",
     "plot_residuals_by_month",
     "plot_quarterly_warming_trend",
+    "plot_combined_temperature_distribution",
 ]
 
 # ---------------------------------------------------------------------------
 # Global style defaults
 # ---------------------------------------------------------------------------
 
-sns.set_theme(style="whitegrid", font_scale=1.1)
+sns.set_theme(style="whitegrid", font_scale=1.2)
 plt.rcParams.update(
     {
-        "figure.dpi": 150,
-        "savefig.dpi": 200,
+        "figure.dpi": VC.FIG_DPI,
+        "savefig.dpi": VC.SAVE_DPI,
         "savefig.bbox": "tight",
-        "axes.titlesize": 13,
-        "axes.labelsize": 11,
-        "xtick.labelsize": 9,
-        "ytick.labelsize": 9,
-        "legend.fontsize": 10,
+        "axes.titlesize": VC.TITLE_FONT_SIZE,
+        "axes.labelsize": VC.LABEL_FONT_SIZE,
+        "xtick.labelsize": VC.TICK_FONT_SIZE,
+        "ytick.labelsize": VC.TICK_FONT_SIZE,
+        "legend.fontsize": VC.LEGEND_FONT_SIZE,
         "font.family": "sans-serif",
     }
 )
@@ -127,6 +133,95 @@ def _geographic_aspect(region: dict) -> float:
     return 1.0 / np.cos(lat_mid)
 
 
+def _overlay_coarse_grid(
+    ax: plt.Axes,
+    coarse_lats: np.ndarray,
+    coarse_lons: np.ndarray,
+) -> None:
+    """Draw CMIP6 cell boundary lines on an existing map axes.
+
+    Computes cell edges as midpoints between adjacent cell centres, then
+    draws thin horizontal and vertical lines at each edge.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Target axes (must already have correct x/y limits set).
+    coarse_lats, coarse_lons : array-like
+        1-D arrays of CMIP6 cell *centre* coordinates.
+    """
+    def _edges(c: np.ndarray) -> np.ndarray:
+        c = np.sort(c)
+        return np.concatenate([
+            [c[0] - (c[1] - c[0]) / 2],
+            (c[:-1] + c[1:]) / 2,
+            [c[-1] + (c[-1] - c[-2]) / 2],
+        ])
+
+    lat_edges = _edges(np.asarray(coarse_lats, dtype=float))
+    lon_edges = _edges(np.asarray(coarse_lons, dtype=float))
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    for lat in lat_edges:
+        ax.axhline(lat, color=VC.COARSE_GRID_COLOR,
+                   lw=VC.COARSE_GRID_LW, alpha=VC.COARSE_GRID_ALPHA)
+    for lon in lon_edges:
+        ax.axvline(lon, color=VC.COARSE_GRID_COLOR,
+                   lw=VC.COARSE_GRID_LW, alpha=VC.COARSE_GRID_ALPHA)
+    # restore limits in case axhline/axvline nudged them
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+
+def _draw_highlight_box(
+    ax: plt.Axes,
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    label: str = None,
+    color: str = "red",
+    lw: float = 2.5,
+) -> None:
+    """Draw a bold rectangle on a map axes to highlight a sub-region.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    lat_min, lat_max, lon_min, lon_max : float
+        Bounding box in geographic coordinates (degrees).
+    label : str, optional
+        Short annotation text placed outside the top-right corner of the box.
+    color : str
+        Edge colour (default red).
+    lw : float
+        Line width.
+    """
+    rect = mpatches.Rectangle(
+        (lon_min, lat_min),
+        lon_max - lon_min,
+        lat_max - lat_min,
+        linewidth=lw,
+        edgecolor=color,
+        facecolor="none",
+        zorder=10,
+    )
+    ax.add_patch(rect)
+    if label:
+        ax.annotate(
+            label,
+            xy=(lon_max, lat_max),
+            xytext=(lon_max + 0.2, lat_max + 0.15),
+            fontsize=7,
+            color=color,
+            fontweight="bold",
+            zorder=11,
+            ha="left",
+            va="bottom",
+            bbox=dict(boxstyle="round,pad=0.25", fc="white", ec=color, lw=0.8, alpha=0.88),
+        )
+
+
 def apply_map_formatting(
     ax: plt.Axes,
     region: dict,
@@ -167,8 +262,9 @@ def apply_map_formatting(
     ax.set_yticks(lat_ticks)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_lon_formatter))
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_lat_formatter))
-    ax.set_xlabel("Longitude", fontsize=10)
-    ax.set_ylabel("Latitude", fontsize=10)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
+    ax.set_xlabel("Longitude", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel("Latitude", fontsize=VC.LABEL_FONT_SIZE)
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(_geographic_aspect(region))
@@ -220,6 +316,9 @@ def plot_temperature_map(
     region: dict = None,
     vmin: float = None,
     vmax: float = None,
+    show_coarse_grid: bool = True,
+    coarse_lats=None,
+    coarse_lons=None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot a single-panel 2-D temperature map.
@@ -240,6 +339,11 @@ def plot_temperature_map(
         Bounding box for axis limits and tick formatting.
     vmin, vmax : float, optional
         Color scale limits.
+    show_coarse_grid : bool, optional
+        If True and *coarse_lats*/*coarse_lons* are provided, overlay the
+        CMIP6 (~1°) cell boundary grid on the map.
+    coarse_lats, coarse_lons : array-like, optional
+        1-D CMIP6 cell centre coordinates used for the grid overlay.
     save_path : str or Path, optional
         If provided, the figure is saved at this path.
 
@@ -253,11 +357,14 @@ def plot_temperature_map(
 
     im = ax.pcolormesh(lons, lats, data_2d, cmap=cmap, vmin=vmin, vmax=vmax, shading="auto")
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label(cbar_label, fontsize=10)
+    cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
     cbar.ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
-    ax.set_title(title, fontsize=13, pad=8)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE, pad=8)
     apply_map_formatting(ax, region)
+    if show_coarse_grid and coarse_lats is not None and coarse_lons is not None:
+        _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
 
     plt.tight_layout()
     if save_path:
@@ -281,6 +388,10 @@ def plot_side_by_side_maps(
     shared_clim: bool = True,
     vmin: float = None,
     vmax: float = None,
+    show_coarse_grid: bool = True,
+    coarse_lats=None,
+    coarse_lons=None,
+    highlight_box: dict = None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot two spatial maps side by side for direct comparison.
@@ -321,12 +432,23 @@ def plot_side_by_side_maps(
 
     fig, axes = make_spatial_figure(ncols=2, region=region, col_width=5.5)
 
-    for ax, data, lats, lons, title, label in zip(
+    for i, (ax, data, lats, lons, title, label) in enumerate(zip(
         axes, [data1, data2], [lats1, lats2], [lons1, lons2], titles, panel_labels
-    ):
+    )):
         im = ax.pcolormesh(lons, lats, data, cmap=cmap, vmin=vmin, vmax=vmax, shading="auto")
-        ax.set_title(f"{label} {title}", fontsize=12, pad=6)
+        ax.set_title(f"{label} {title}", fontsize=VC.TITLE_FONT_SIZE, pad=6)
         apply_map_formatting(ax, region)
+        # Overlay coarse grid on the fine-resolution (left) panel
+        if i == 0 and show_coarse_grid and coarse_lats is not None and coarse_lons is not None:
+            _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
+        # Highlight box on both panels; label only on the right panel to avoid duplication
+        if highlight_box is not None:
+            _draw_highlight_box(
+                ax,
+                highlight_box["lat_min"], highlight_box["lat_max"],
+                highlight_box["lon_min"], highlight_box["lon_max"],
+                label=highlight_box.get("label") if i == 1 else None,
+            )
 
     # Suppress Y-axis on the right panel — latitude is labelled on the left only
     axes[1].set_ylabel("")
@@ -336,11 +458,12 @@ def plot_side_by_side_maps(
     fig.subplots_adjust(right=0.85, wspace=0.08)
     cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
     cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label(cbar_label, fontsize=10)
+    cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
     cbar.ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
     if suptitle:
-        fig.suptitle(suptitle, fontsize=14, y=1.02)
+        fig.suptitle(suptitle, fontsize=VC.TITLE_FONT_SIZE, y=1.02)
 
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
@@ -431,6 +554,8 @@ def plot_seasonal_comparison_maps(
     cbar_label: str = "Mean temperature (°C)",
     cmap: str = _TEMP_CMAP,
     region: dict = None,
+    show_coarse_grid: bool = True,
+    highlight_box: dict = None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Four-season side-by-side comparison: ERA5-Land (left) vs CMIP6 (right).
@@ -463,7 +588,6 @@ def plot_seasonal_comparison_maps(
     matplotlib.figure.Figure
     """
     region = region or _DEFAULT_REGION
-    seasons = ["DJF", "MAM", "JJA", "SON"]
     season_names = {
         "DJF": "Dec–Feb (DJF)",
         "MAM": "Mar–May (MAM)",
@@ -480,55 +604,95 @@ def plot_seasonal_comparison_maps(
     vmin = float(np.nanpercentile(all_vals, 2))
     vmax = float(np.nanpercentile(all_vals, 98))
 
+    # ── Figure geometry ──────────────────────────────────────────────────────
+    # Layout: 5 columns × 2 map rows + narrow colorbar strip at bottom.
+    #   col 0 : ERA5 season A   col 1 : CMIP season A
+    #   col 2 : narrow separator
+    #   col 3 : ERA5 season B   col 4 : CMIP season B
+    # Row 0: DJF (cols 0-1) + MAM (cols 3-4)
+    # Row 1: JJA (cols 0-1) + SON (cols 3-4)
     asp = _geographic_aspect(region)
     lat_span = region["north"] - region["south"]
-    lon_span = region["east"] - region["west"]
-    col_w = 4.5
+    lon_span  = region["east"]  - region["west"]
+    col_w = 3.0          # inches per map column
+    sep_w = 0.30         # inches for the narrow separator column
     row_h = col_w * (lat_span * asp) / lon_span
 
-    fig, axes = plt.subplots(
-        4, 2,
-        figsize=(col_w * 2 + 1.5, row_h * 4 + 0.5),
+    # Total figure size (extra width/height for margins, suptitle, colorbar)
+    fig_w = 4 * col_w + sep_w + 1.6
+    fig_h = 2 * row_h + 2.2   # extra height to absorb row gap + colorbar
+    fig = plt.figure(figsize=(fig_w, fig_h))
+
+    # GridSpec: 2 map rows; colorbar lives in fig.add_axes below
+    gs = gridspec.GridSpec(
+        2, 5,
+        figure=fig,
+        width_ratios=[col_w, col_w, sep_w, col_w, col_w],
+        height_ratios=[row_h, row_h],
+        top=0.91, bottom=0.11,
+        left=0.07, right=0.97,
+        hspace=0.30, wspace=0.14,
     )
 
-    for row, season in enumerate(seasons):
-        for col, (data, lats, lons) in enumerate([
-            (era5_seasonal_means[season], era5_lats, era5_lons),
-            (cmip_seasonal_means[season], cmip_lats, cmip_lons),
+    # ── Season → grid position mapping ───────────────────────────────────────
+    # (gs_row, gs_col_era5, season_key)
+    season_layout = [
+        (0, 0, "DJF"),   # row 0, left pair
+        (0, 3, "MAM"),   # row 0, right pair
+        (1, 0, "JJA"),   # row 1, left pair
+        (1, 3, "SON"),   # row 1, right pair
+    ]
+
+    last_im = None
+    for gs_row, gs_col_era5, season in season_layout:
+        for c_off, (data, lats, lons, is_cmip) in enumerate([
+            (era5_seasonal_means[season], era5_lats, era5_lons, False),
+            (cmip_seasonal_means[season], cmip_lats, cmip_lons, True),
         ]):
-            ax = axes[row, col]
+            ax = fig.add_subplot(gs[gs_row, gs_col_era5 + c_off])
             im = ax.pcolormesh(
                 lons, lats, data,
                 cmap=cmap, vmin=vmin, vmax=vmax, shading="auto",
             )
-            # Row label (season) on left column only
-            season_str = season_names[season]
-            dataset_str = "ERA5-Land (0.1°)" if col == 0 else "CMIP6 (~1°)"
-            ax.set_title(f"{season_str} — {dataset_str}", fontsize=10, pad=4)
+            last_im = im
+
+            ds_str = "CMIP6 (~1°)" if is_cmip else "ERA5-Land (0.1°)"
+            ax.set_title(
+                f"{season_names[season]} — {ds_str}",
+                fontsize=VC.TICK_FONT_SIZE, pad=4,
+            )
             apply_map_formatting(ax, region)
-            # Suppress Y-axis on right column — latitude is labelled on the left only
-            if col == 1:
+
+            # Coarse grid on ERA5 panels
+            if not is_cmip and show_coarse_grid:
+                _overlay_coarse_grid(ax, cmip_lats, cmip_lons)
+
+            # Suppress Y-axis on CMIP (right) panels
+            if is_cmip:
                 ax.set_ylabel("")
                 ax.set_yticklabels([])
                 ax.tick_params(axis="y", left=False)
 
-    # Column headers
-    fig.text(0.28, 0.955, "ERA5-Land (0.1°)", ha="center", va="bottom",
-             fontsize=12, fontweight="bold")
-    fig.text(0.72, 0.955, "CMIP6 CESM2-WACCM (~1°)", ha="center", va="bottom",
-             fontsize=12, fontweight="bold")
+            # Highlight box — label only on DJF CMIP panel (top-left pair, right panel)
+            if highlight_box is not None:
+                show_label = (gs_row == 0 and gs_col_era5 == 0 and is_cmip)
+                _draw_highlight_box(
+                    ax,
+                    highlight_box["lat_min"], highlight_box["lat_max"],
+                    highlight_box["lon_min"], highlight_box["lon_max"],
+                    label=highlight_box.get("label") if show_label else None,
+                )
 
-    # Shared horizontal colorbar at the bottom
-    fig.subplots_adjust(top=0.93, bottom=0.06, left=0.05, right=0.97,
-                        hspace=0.18, wspace=0.10)
-    cbar_ax = fig.add_axes([0.12, 0.025, 0.76, 0.016])
-    cbar = fig.colorbar(im, cax=cbar_ax, orientation="horizontal")
-    cbar.set_label(cbar_label, fontsize=11)
+    # ── Horizontal colorbar spanning the full figure width ───────────────────
+    cbar_ax = fig.add_axes([0.10, 0.038, 0.80, 0.018])
+    cbar = fig.colorbar(last_im, cax=cbar_ax, orientation="horizontal")
+    cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
     cbar.ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
     fig.suptitle(
         "Seasonal mean 2 m temperature — ERA5-Land vs CMIP6 CESM2-WACCM, 1990–1999",
-        fontsize=13, y=0.97,
+        fontsize=VC.TITLE_FONT_SIZE, y=0.965,
     )
 
     if save_path:
@@ -541,6 +705,9 @@ def plot_land_sea_mask(
     lats: np.ndarray,
     lons: np.ndarray,
     region: dict = None,
+    show_coarse_grid: bool = True,
+    coarse_lats=None,
+    coarse_lons=None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot a binary land/ocean map derived from the ERA5-Land land–sea mask.
@@ -581,15 +748,18 @@ def plot_land_sea_mask(
         Patch(facecolor="#a1d99b", edgecolor="grey", label="Land"),
         Patch(facecolor="#6baed6", edgecolor="grey", label="Ocean / no data"),
     ]
-    ax.legend(handles=legend_elements, loc="lower right", fontsize=9,
+    ax.legend(handles=legend_elements, loc="lower right", fontsize=VC.LEGEND_FONT_SIZE,
               framealpha=0.9)
 
-    ax.set_title("ERA5-Land coverage: land and ocean pixels\n(1990–1999)", fontsize=12)
+    ax.set_title("ERA5-Land coverage: land and ocean pixels\n(1990–1999)",
+                 fontsize=VC.TITLE_FONT_SIZE)
     apply_map_formatting(ax, region)
+    if show_coarse_grid and coarse_lats is not None and coarse_lons is not None:
+        _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
 
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, bbox_inches="tight", dpi=200)
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
     return fig
 
 
@@ -598,6 +768,9 @@ def plot_missing_fraction_map(
     lats: np.ndarray,
     lons: np.ndarray,
     region: dict = None,
+    show_coarse_grid: bool = True,
+    coarse_lats=None,
+    coarse_lons=None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot the fraction of missing values per grid pixel.
@@ -623,9 +796,13 @@ def plot_missing_fraction_map(
         cmap=_MISSING_CMAP, vmin=0, vmax=1, shading="auto",
     )
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("Fraction of missing values", fontsize=10)
-    ax.set_title("Fraction of missing values per pixel\n(ERA5-Land, 1990–1999)", fontsize=12)
+    cbar.set_label("Fraction of missing values", fontsize=VC.CBAR_LABEL_SIZE)
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+    ax.set_title("Fraction of missing values per pixel\n(ERA5-Land, 1990–1999)",
+                 fontsize=VC.TITLE_FONT_SIZE)
     apply_map_formatting(ax, region)
+    if show_coarse_grid and coarse_lats is not None and coarse_lons is not None:
+        _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
 
     plt.tight_layout()
     if save_path:
@@ -655,15 +832,15 @@ def plot_missing_fraction_timeseries(
     """
     fig, ax = plt.subplots(figsize=(10, 3.5))
     ax.plot(missing_per_day.index, missing_per_day.values, lw=0.8, color="steelblue")
-    ax.set_xlabel("Date", fontsize=10)
-    ax.set_ylabel("Fraction of missing values", fontsize=10)
+    ax.set_xlabel("Date", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel("Fraction of missing values", fontsize=VC.LABEL_FONT_SIZE)
     ax.set_title(
-        "Daily fraction of missing ERA5-Land pixels, 1990–1999\n"
-        "(constant value confirms static land–sea mask)",
-        fontsize=12,
+        "Daily fraction of missing ERA5-Land pixels, 1990–1999",
+        fontsize=VC.TITLE_FONT_SIZE,
     )
     ax.set_ylim(0, 1)
     ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path)
@@ -675,6 +852,7 @@ def plot_domain_timeseries(
     title: str = "Domain-averaged daily 2 m temperature",
     ylabel: str = "Temperature (°C)",
     colors: dict | None = None,
+    fill_dict: dict | None = None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot domain-averaged daily temperature time series for one or more datasets.
@@ -690,6 +868,10 @@ def plot_domain_timeseries(
         Y-axis label.
     colors : dict, optional
         Map from label to colour string.  Defaults to a categorical palette.
+    fill_dict : dict, optional
+        Pre-computed confidence bands.  Same keys as *series_dict*; values are
+        ``(lower_series, upper_series)`` tuples of pd.Series.  When provided,
+        a shaded band is drawn around the corresponding line.
     save_path : str or Path, optional
 
     Returns
@@ -703,11 +885,26 @@ def plot_domain_timeseries(
     for label, series in series_dict.items():
         idx = pd.to_datetime(series.index) if not isinstance(series.index, pd.DatetimeIndex) else series.index
         ax.plot(idx, series.values, label=label, lw=1.2, color=colors[label])
+        if fill_dict and label in fill_dict:
+            lo, hi = fill_dict[label]
+            lo_idx = pd.to_datetime(lo.index) if not isinstance(lo.index, pd.DatetimeIndex) else lo.index
+            ax.fill_between(lo_idx, lo.values, hi.values,
+                            color=colors[label], alpha=VC.CI_ALPHA, linewidth=0)
 
-    ax.set_xlabel("Date", fontsize=10)
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_title(title, fontsize=13)
-    ax.legend(framealpha=0.8)
+    ax.set_xlabel("Date", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
+
+    # Legend: dataset lines + one proxy explaining the shaded band (if present)
+    handles, _ = ax.get_legend_handles_labels()
+    if fill_dict:
+        band_proxy = mpatches.Patch(
+            facecolor="gray", alpha=min(VC.CI_ALPHA * 1.8, 0.7), edgecolor="none",
+            label="Shaded: ±1 SD of daily values within each period",
+        )
+        handles = handles + [band_proxy]
+    ax.legend(handles=handles, framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
     # Year-level x-axis ticks for multi-year series
     ax.xaxis.set_major_locator(mdates.YearLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -770,10 +967,11 @@ def plot_domain_range_timeseries(
                         color=color, alpha=0.15, linewidth=0)
         ax.plot(idx, mean_s.values, label=label, lw=1.2, color=color)
 
-    ax.set_xlabel("Date", fontsize=10)
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_title(title, fontsize=13)
-    ax.legend(framealpha=0.8)
+    ax.set_xlabel("Date", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.legend(framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.xaxis.set_major_locator(mdates.YearLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[4, 7, 10]))
@@ -793,6 +991,8 @@ def plot_quarterly_warming_trend(
     quarter_dates: list[str] | None = None,
     quarter_labels: list[str] | None = None,
     title: str = "Quarterly temperature at selected location",
+    show_trend_band: bool = True,
+    confidence_pct: float = VC.DEFAULT_CI_PCT,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot temperature at a single location for four quarterly dates across all years.
@@ -860,38 +1060,55 @@ def plot_quarterly_warming_trend(
         ax.plot(years_c, cmip_sub.values, color=c_cmip, marker='s', lw=1.4,
                 ms=6, label=cmip_label)
 
-        # OLS trend lines
+        # OLS trend lines with optional confidence band
+        alpha_t = (1.0 - confidence_pct / 100.0) / 2.0
         for years_arr, vals, col in [
             (years_e, era5_sub.values, c_era5),
             (years_c, cmip_sub.values, c_cmip),
         ]:
             if len(years_arr) >= 2:
-                x_num = np.arange(len(years_arr))
-                slope, intercept = np.polyfit(x_num, vals, 1)
-                ax.plot(years_arr, slope * x_num + intercept,
-                        color=col, lw=0.9, linestyle=':', alpha=0.7)
+                x_num = np.arange(len(years_arr), dtype=float)
+                lr = stats.linregress(x_num, vals)
+                y_fit = lr.slope * x_num + lr.intercept
+                ax.plot(years_arr, y_fit, color=col, lw=0.9, linestyle=':', alpha=0.7)
+                if show_trend_band and len(years_arr) >= 3:
+                    n = len(years_arr)
+                    t_crit = stats.t.ppf(1.0 - alpha_t, df=n - 2)
+                    # SE of prediction: combines residual error + SE of mean
+                    resid_se = np.sqrt(np.sum((vals - y_fit) ** 2) / (n - 2))
+                    x_mean = x_num.mean()
+                    se_fit = resid_se * np.sqrt(
+                        1 / n + (x_num - x_mean) ** 2 / np.sum((x_num - x_mean) ** 2)
+                    )
+                    ax.fill_between(
+                        years_arr,
+                        y_fit - t_crit * se_fit,
+                        y_fit + t_crit * se_fit,
+                        color=col, alpha=VC.CI_ALPHA, linewidth=0,
+                    )
 
         all_years = sorted(set(years_e) | set(years_c))
         ax.set_xticks(all_years)
-        ax.set_xticklabels(all_years, fontsize=8, rotation=45, ha='right')
-        ax.set_title(qlabel, fontsize=11)
+        ax.set_xticklabels(all_years, fontsize=VC.TICK_FONT_SIZE - 1, rotation=45, ha='right')
+        ax.set_title(qlabel, fontsize=VC.LABEL_FONT_SIZE)
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+        ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
         ax.text(0.03, 0.96, panel_labels[i], transform=ax.transAxes,
-                fontsize=10, va='top', fontweight='bold')
-        ax.set_xlabel('Year', fontsize=9)
+                fontsize=VC.PANEL_LABEL_SIZE, va='top', fontweight='bold')
+        ax.set_xlabel('Year', fontsize=VC.LABEL_FONT_SIZE)
         if i % 2 == 0:
-            ax.set_ylabel('Temperature (°C)', fontsize=9)
+            ax.set_ylabel('Temperature (°C)', fontsize=VC.LABEL_FONT_SIZE)
 
     # Shared legend below the subplots
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='lower center', ncol=2,
-               framealpha=0.8, fontsize=9,
+               framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE,
                bbox_to_anchor=(0.5, -0.04))
 
-    fig.suptitle(title, fontsize=13, y=1.01)
+    fig.suptitle(title, fontsize=VC.TITLE_FONT_SIZE, y=1.01)
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, bbox_inches='tight', dpi=200)
+        fig.savefig(save_path, bbox_inches='tight', dpi=VC.SAVE_DPI)
     return fig
 
 
@@ -899,9 +1116,13 @@ def plot_monthly_climatology(
     series_dict: dict[str, pd.Series],
     title: str = "Monthly mean 2 m temperature climatology, 1990–1999",
     ylabel: str = "Temperature (°C)",
+    confidence_pct: float = VC.DEFAULT_CI_PCT,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot monthly mean temperature climatology for multiple datasets.
+
+    A shaded confidence band is drawn around each line representing the
+    year-to-year variability for each calendar month (t-based CI).
 
     Parameters
     ----------
@@ -910,6 +1131,9 @@ def plot_monthly_climatology(
         spanning the full study period.
     title : str
         Figure title.
+    confidence_pct : float
+        Width of the confidence band as a percentage (default 90%).
+        Set to 0 or None to suppress the band.
     save_path : str or Path, optional
 
     Returns
@@ -919,23 +1143,51 @@ def plot_monthly_climatology(
     month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     palette = sns.color_palette("tab10", n_colors=len(series_dict))
+    alpha_t = (1.0 - (confidence_pct or 0) / 100.0) / 2.0
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
     for i, (label, series) in enumerate(series_dict.items()):
         idx = pd.to_datetime(series.index) if not isinstance(series.index, pd.DatetimeIndex) else series.index
         monthly = series.copy()
         monthly.index = idx
-        climatology = monthly.groupby(monthly.index.month).mean()
+        # Build a (month × year) matrix of monthly means so CI reflects
+        # year-to-year variability, not within-month daily noise
+        yr_mo_means = monthly.groupby([monthly.index.year, monthly.index.month]).mean()
+        month_year_mat = yr_mo_means.unstack(level=0)   # rows=month(1–12), cols=year
+        climatology = month_year_mat.mean(axis=1)
+        color = palette[i]
         ax.plot(climatology.index, climatology.values, marker="o", lw=1.8,
-                label=label, color=palette[i])
+                label=label, color=color)
+        if confidence_pct:
+            clim_std   = month_year_mat.std(axis=1, ddof=1)
+            clim_count = month_year_mat.count(axis=1)
+            # t-CI on the inter-annual mean for each calendar month
+            t_crit = stats.t.ppf(1.0 - alpha_t, df=(clim_count - 1).clip(lower=1))
+            se = clim_std / np.sqrt(clim_count)
+            ax.fill_between(
+                climatology.index,
+                (climatology - t_crit * se).values,
+                (climatology + t_crit * se).values,
+                color=color, alpha=VC.CI_ALPHA, linewidth=0,
+            )
 
     ax.set_xticks(range(1, 13))
-    ax.set_xticklabels(month_labels)
-    ax.set_xlabel("Month", fontsize=10)
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_title(title, fontsize=13)
+    ax.set_xticklabels(month_labels, fontsize=VC.TICK_FONT_SIZE)
+    ax.set_xlabel("Month", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
-    ax.legend(framealpha=0.8)
+
+    # Legend: dataset lines + one proxy explaining the CI band
+    handles, labels_leg = ax.get_legend_handles_labels()
+    if confidence_pct:
+        ci_proxy = mpatches.Patch(
+            facecolor="gray", alpha=min(VC.CI_ALPHA * 1.8, 0.7), edgecolor="none",
+            label=f"Shaded: {int(confidence_pct)}% CI on inter-annual mean (±t·SE, n=10 yr)",
+        )
+        handles = handles + [ci_proxy]
+    ax.legend(handles=handles, framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path)
@@ -990,8 +1242,9 @@ def plot_temperature_distributions(
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
 
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_title(title, fontsize=13)
+    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
     plt.tight_layout()
     if save_path:
@@ -1072,17 +1325,126 @@ def plot_temperature_percentiles(
                 transform=ax.get_xaxis_transform(),
             )
 
-    ax.set_xlabel("2 m temperature (°C)", fontsize=10)
-    ax.set_ylabel("Probability density", fontsize=10)
+    ax.set_xlabel("2 m temperature (°C)", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel("Probability density", fontsize=VC.LABEL_FONT_SIZE)
     ax.set_title(
-        "Daily 2 m temperature distribution, 1990–1999 — with key percentiles",
-        fontsize=12,
+        "Daily 2 m temperature distribution — ERA5-Land and CMIP6, 1990–1999",
+        fontsize=VC.TITLE_FONT_SIZE,
     )
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
-    ax.legend(framealpha=0.85)
+    ax.legend(framealpha=0.85, fontsize=VC.LEGEND_FONT_SIZE)
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, bbox_inches="tight", dpi=200)
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Combined distribution figure (KDE + boxplot in one figure)
+# ---------------------------------------------------------------------------
+
+def plot_combined_temperature_distribution(
+    era5_flat: np.ndarray,
+    cmip_flat: np.ndarray,
+    save_path: str | Path = None,
+) -> plt.Figure:
+    """Combined two-panel temperature distribution figure.
+
+    Panel (a) — Density curves: overlapping probability density histograms
+    for ERA5-Land and CMIP6 temperature values (no percentile markers).
+
+    Panel (b) — Box plots: side-by-side boxplots showing IQR, whiskers,
+    and median for each dataset.
+
+    The two panels share a common temperature x-axis so distributions can
+    be read consistently.
+
+    Parameters
+    ----------
+    era5_flat : np.ndarray
+        1-D array of ERA5-Land land-pixel temperatures in °C.
+    cmip_flat : np.ndarray
+        1-D array of CMIP6 cell temperatures in °C.
+    save_path : str or Path, optional
+        Output file path.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    _c_era5 = "#1f77b4"   # tab10 blue
+    _c_cmip  = "#ff7f0e"  # tab10 orange
+
+    era5_clean = era5_flat[np.isfinite(era5_flat)]
+    cmip_clean = cmip_flat[np.isfinite(cmip_flat)]
+
+    combined = np.concatenate([era5_clean, cmip_clean])
+    bins = np.linspace(np.nanmin(combined), np.nanmax(combined), 300)
+    x_lim = (float(np.nanmin(combined)) - 1.0, float(np.nanmax(combined)) + 1.0)
+
+    fig, axes = plt.subplots(
+        2, 1,
+        figsize=(10, 8),
+        gridspec_kw={"height_ratios": [2.5, 1.5]},
+        sharex=False,
+    )
+
+    # — Panel (a): density curves —
+    ax_kde = axes[0]
+    for label, vals, color in [
+        ("ERA5-Land (0.1°)", era5_clean, _c_era5),
+        ("CMIP6 (~1°)",      cmip_clean,  _c_cmip),
+    ]:
+        counts, edges = np.histogram(vals, bins=bins, density=True)
+        centers = (edges[:-1] + edges[1:]) / 2
+        ax_kde.plot(centers, counts, lw=1.8, color=color, label=label)
+        ax_kde.fill_between(centers, counts, alpha=0.15, color=color)
+
+    ax_kde.set_ylabel("Probability density", fontsize=VC.LABEL_FONT_SIZE)
+    ax_kde.set_title(
+        "Daily 2 m temperature distribution — ERA5-Land and CMIP6, 1990–1999",
+        fontsize=VC.TITLE_FONT_SIZE,
+    )
+    ax_kde.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    ax_kde.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
+    ax_kde.legend(framealpha=0.85, fontsize=VC.LEGEND_FONT_SIZE)
+    ax_kde.text(0.01, 0.97, "(a)", transform=ax_kde.transAxes,
+                fontsize=VC.PANEL_LABEL_SIZE, va="top", fontweight="bold")
+    ax_kde.set_xlim(x_lim)
+
+    # — Panel (b): box plots —
+    ax_box = axes[1]
+    max_pts = 300_000
+    era5_plot = era5_clean[np.random.default_rng(42).choice(
+        len(era5_clean), min(max_pts, len(era5_clean)), replace=False)]
+    cmip_plot = cmip_clean[np.random.default_rng(42).choice(
+        len(cmip_clean), min(max_pts, len(cmip_clean)), replace=False)]
+
+    bp = ax_box.boxplot(
+        [era5_plot, cmip_plot],
+        vert=False,
+        patch_artist=True,
+        labels=["ERA5-Land (0.1°)", "CMIP6 (~1°)"],
+        notch=False,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.5},
+        widths=0.5,
+    )
+    for patch, color in zip(bp["boxes"], [_c_era5, _c_cmip]):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+
+    ax_box.set_xlabel("2 m temperature (°C)", fontsize=VC.LABEL_FONT_SIZE)
+    ax_box.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+    ax_box.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
+    ax_box.text(0.01, 0.97, "(b)", transform=ax_box.transAxes,
+                fontsize=VC.PANEL_LABEL_SIZE, va="top", fontweight="bold")
+    ax_box.set_xlim(x_lim)
+
+    plt.tight_layout()
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
     return fig
 
 
@@ -1096,6 +1458,9 @@ def plot_pixel_assignment_map(
     lons: np.ndarray,
     land_mask_2d: np.ndarray,
     region: dict = None,
+    show_coarse_grid: bool = True,
+    coarse_lats=None,
+    coarse_lons=None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot ERA5-Land pixels coloured by their assigned CMIP6 grid cell.
@@ -1109,6 +1474,10 @@ def plot_pixel_assignment_map(
     land_mask_2d : np.ndarray
         Boolean land mask.
     region : dict, optional
+    show_coarse_grid : bool, optional
+        If True and coarse_lats/coarse_lons provided, draw CMIP6 cell boundaries.
+    coarse_lats, coarse_lons : array-like, optional
+        CMIP6 cell centre coordinates for the grid overlay.
     save_path : str or Path, optional
 
     Returns
@@ -1136,8 +1505,11 @@ def plot_pixel_assignment_map(
     fig, axes = make_spatial_figure(ncols=1, region=region)
     ax = axes[0]
     im = ax.pcolormesh(lons, lats, cell_grid, cmap="tab20b", shading="auto")
-    ax.set_title("ERA5-Land pixels coloured by assigned CMIP6 grid cell", fontsize=12)
+    ax.set_title("ERA5-Land pixels coloured by assigned CMIP6 grid cell",
+                 fontsize=VC.TITLE_FONT_SIZE)
     apply_map_formatting(ax, region)
+    if show_coarse_grid and coarse_lats is not None and coarse_lons is not None:
+        _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
 
     plt.tight_layout()
     if save_path:
@@ -1174,34 +1546,53 @@ def plot_pixels_per_cell_heatmap(
     pivot = pivot.sort_index(ascending=False)  # north at top
     pivot_int = pivot.fillna(0).astype(int)    # convert to int so fmt="d" works
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    n_rows, n_cols = pivot_int.shape
+    # Size the figure so each cell naturally has the correct geographic proportions:
+    # at the domain's mean latitude, 1° lon is shorter than 1° lat by factor cos(lat_mid).
+    # We target ~0.85 inches per cell in the longer (latitude) direction.
+    asp = _geographic_aspect(region)   # height / width per degree  (≈ 1.167 at 31°N)
+    cell_h_in = 0.85                   # inches per latitude cell
+    cell_w_in = cell_h_in / asp        # inches per longitude cell (narrower)
+    fig_w = n_cols * cell_w_in + 1.2   # +1.2 for the colorbar
+    fig_h = n_rows * cell_h_in + 1.0   # +1.0 for title / labels
+
+    # Reserve a narrow strip on the right for the colorbar so it doesn't overlap
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    ax = fig.add_axes([0.06, 0.08, 0.80, 0.84])          # [left, bottom, width, height]
+    cbar_ax = fig.add_axes([0.88, 0.08, 0.03, 0.84])      # narrow right strip
+
     sns.heatmap(
         pivot_int,
         ax=ax,
         cmap="YlGnBu",
         annot=True,
         fmt="d",          # integer format — no decimal point
-        annot_kws={"size": 7},
+        annot_kws={"size": VC.ANNOT_FONT_SIZE},
         linewidths=0.3,
         linecolor="white",
+        cbar_ax=cbar_ax,
         cbar_kws={"label": "Number of ERA5-Land pixels"},
     )
+    cbar_ax.set_ylabel("Number of ERA5-Land pixels", fontsize=VC.TICK_FONT_SIZE)
+    cbar_ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+
     # Clean tick labels: round to nearest integer degree
     ax.set_xticklabels(
-        [f"{round(float(c))}°E" for c in pivot.columns], rotation=45, ha="right", fontsize=8
+        [f"{round(float(c))}°E" for c in pivot.columns],
+        rotation=45, ha="right", fontsize=VC.TICK_FONT_SIZE,
     )
     ax.set_yticklabels(
-        [f"{round(float(r))}°N" for r in pivot.index], rotation=0, fontsize=8
+        [f"{round(float(r))}°N" for r in pivot.index],
+        rotation=0, fontsize=VC.TICK_FONT_SIZE,
     )
-    ax.set_xlabel("CMIP6 longitude", fontsize=10)
-    ax.set_ylabel("CMIP6 latitude", fontsize=10)
+    ax.set_xlabel("CMIP6 longitude", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel("CMIP6 latitude", fontsize=VC.LABEL_FONT_SIZE)
     ax.set_title(
-        "Number of ERA5-Land (0.1°) pixels assigned to each CMIP6 (~1°) grid cell",
-        fontsize=12,
+        "ERA5-Land (0.1°) pixel count per CMIP6 (~1°) grid cell",
+        fontsize=VC.TITLE_FONT_SIZE, pad=10,
     )
-    plt.tight_layout()
     if save_path:
-        fig.savefig(save_path)
+        fig.savefig(save_path, bbox_inches="tight")
     return fig
 
 
@@ -1466,9 +1857,10 @@ def _draw_residual_boxplot(
     for patch in bp["boxes"]:
         patch.set_facecolor("steelblue")
         patch.set_alpha(0.45)
-    ax.set_xlabel(xlabel, fontsize=11)
-    ax.set_ylabel("OLS residual (°C)", fontsize=11)
-    ax.set_title(title, fontsize=12)
+    ax.set_xlabel(xlabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_ylabel("OLS residual (°C)", fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
 
 
