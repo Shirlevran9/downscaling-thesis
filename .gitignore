@@ -15,3 +15,8 @@ refrences/study-ref/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+*.docx
+comments-outline17042026.txt
+Shell\ commands.rtf
+plots/
+history/
