@@ -5,6 +5,8 @@ data/
 *.grib2
 *.h5
 *.hdf5
+refrences/notes/  
+refrences/study-ref/
 
 # macOS
 .DS_Store
