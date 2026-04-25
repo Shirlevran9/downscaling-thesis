@@ -57,8 +57,10 @@ __all__ = [
     "plot_residuals_by_pixel_count",
     "plot_residuals_by_season",
     "plot_residuals_by_month",
+    "plot_mean_residual_map",
     "plot_quarterly_warming_trend",
     "plot_combined_temperature_distribution",
+    "plot_domain_timeseries_panels",
 ]
 
 # ---------------------------------------------------------------------------
@@ -268,6 +270,7 @@ def apply_map_formatting(
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(_geographic_aspect(region))
+    ax.grid(False)  # suppress seaborn whitegrid; coarse-grid overlay is drawn separately
 
 
 def make_spatial_figure(
@@ -455,7 +458,7 @@ def plot_side_by_side_maps(
     axes[1].set_yticklabels([])
     axes[1].tick_params(axis="y", left=False)
 
-    fig.subplots_adjust(right=0.85, wspace=0.08)
+    fig.subplots_adjust(right=0.85, wspace=0.08, top=0.93)
     cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
     cbar = fig.colorbar(im, cax=cbar_ax)
     cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
@@ -463,7 +466,7 @@ def plot_side_by_side_maps(
     cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
     if suptitle:
-        fig.suptitle(suptitle, fontsize=VC.TITLE_FONT_SIZE, y=1.02)
+        fig.suptitle(suptitle, fontsize=VC.TITLE_FONT_SIZE, y=0.99)
 
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
@@ -556,6 +559,9 @@ def plot_seasonal_comparison_maps(
     region: dict = None,
     show_coarse_grid: bool = True,
     highlight_box: dict = None,
+    suptitle: str = "Seasonal mean 2 m temperature, 1990–1999",
+    era5_label: str = "ERA5-Land (0.1°)",
+    cmip_label: str = "CMIP6 CESM2-WACCM (~1°)",
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Four-season side-by-side comparison: ERA5-Land (left) vs CMIP6 (right).
@@ -656,7 +662,7 @@ def plot_seasonal_comparison_maps(
             )
             last_im = im
 
-            ds_str = "CMIP6 (~1°)" if is_cmip else "ERA5-Land (0.1°)"
+            ds_str = cmip_label if is_cmip else era5_label
             ax.set_title(
                 f"{season_names[season]} — {ds_str}",
                 fontsize=VC.TICK_FONT_SIZE, pad=4,
@@ -690,10 +696,8 @@ def plot_seasonal_comparison_maps(
     cbar.ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
     cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
-    fig.suptitle(
-        "Seasonal mean 2 m temperature — ERA5-Land vs CMIP6 CESM2-WACCM, 1990–1999",
-        fontsize=VC.TITLE_FONT_SIZE, y=0.965,
-    )
+    if suptitle:
+        fig.suptitle(suptitle, fontsize=VC.TITLE_FONT_SIZE, y=0.965)
 
     if save_path:
         fig.savefig(save_path, bbox_inches="tight")
@@ -847,12 +851,209 @@ def plot_missing_fraction_timeseries(
     return fig
 
 
+# ---------------------------------------------------------------------------
+# Private helpers shared by plot_domain_timeseries and
+# plot_domain_timeseries_panels
+# ---------------------------------------------------------------------------
+
+def _infer_series_freq(series_dict: dict) -> str:
+    """Return 'YE' for yearly series, 'ME' for monthly/daily."""
+    first = list(series_dict.values())[0]
+    if len(first) > 1:
+        idx = pd.to_datetime(first.index)
+        delta = (idx[-1] - idx[0]).days / (len(first) - 1)
+        return "YE" if delta > 300 else "ME"
+    return "ME"
+
+
+def _prepare_timeseries_band(
+    series_dict, raw_series_dict, band_method, fill_dict,
+):
+    """Infer frequency and build fill bands if not pre-supplied.
+
+    Returns (fill_dict, freq).
+    """
+    _freq = _infer_series_freq(series_dict)
+    if fill_dict is None and band_method and raw_series_dict:
+        fill_dict = {}
+        for lbl, raw in raw_series_dict.items():
+            raw_idx = (pd.to_datetime(raw.index)
+                       if not isinstance(raw.index, pd.DatetimeIndex)
+                       else raw.index)
+            raw = raw.copy()
+            raw.index = raw_idx
+            grp = raw.resample(_freq)
+            if band_method == "sd":
+                mn = grp.mean()
+                sd = grp.std(ddof=1)
+                lo, hi = mn - sd, mn + sd
+            elif band_method == "percentile":
+                lo = grp.quantile(0.05)
+                hi = grp.quantile(0.95)
+            else:
+                continue
+            lo.index = pd.to_datetime(lo.index.astype(str))
+            hi.index = pd.to_datetime(hi.index.astype(str))
+            fill_dict[lbl] = (lo, hi)
+    return fill_dict, _freq
+
+
+def _draw_timeseries_panel(
+    ax, series_dict, colors, fill_dict,
+    band_label, ylabel, title, freq,
+    highlight_years=None, show_legend=True,
+):
+    """Draw one domain-timeseries panel on *ax* (no figure creation or save)."""
+    for label, series in series_dict.items():
+        idx = (pd.to_datetime(series.index)
+               if not isinstance(series.index, pd.DatetimeIndex)
+               else series.index)
+        ax.plot(idx, series.values, label=label, lw=1.2, color=colors[label])
+        if fill_dict and label in fill_dict:
+            lo, hi = fill_dict[label]
+            lo_idx = (pd.to_datetime(lo.index)
+                      if not isinstance(lo.index, pd.DatetimeIndex)
+                      else lo.index)
+            ax.fill_between(lo_idx, lo.values, hi.values,
+                            color=colors[label], alpha=VC.CI_ALPHA, linewidth=0)
+
+    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
+
+    # X-axis formatting
+    first_idx = pd.to_datetime(list(series_dict.values())[0].index)
+    if freq == "YE":
+        ax.set_xticks(first_idx)
+        ax.set_xticklabels([str(d.year) for d in first_idx],
+                           fontsize=VC.TICK_FONT_SIZE)
+        ax.xaxis.set_minor_locator(mticker.NullLocator())
+        ax.set_xlabel("Year", fontsize=VC.LABEL_FONT_SIZE)
+    else:
+        ax.xaxis.set_major_locator(mdates.YearLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[4, 7, 10]))
+        ax.set_xlabel("", fontsize=VC.LABEL_FONT_SIZE)
+
+    if show_legend:
+        handles, _ = ax.get_legend_handles_labels()
+        if fill_dict and band_label:
+            handles = handles + [mpatches.Patch(
+                facecolor="gray", alpha=min(VC.CI_ALPHA * 1.8, 0.7),
+                edgecolor="none", label=band_label,
+            )]
+        ax.legend(handles=handles, framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
+
+
+def _draw_highlight_years_post(ax, series_dict, freq, highlight_years):
+    """Draw year markers after layout is finalised (ylim must be stable)."""
+    if not highlight_years or freq != "YE":
+        return
+    first_idx = pd.to_datetime(list(series_dict.values())[0].index)
+    year_to_x = {d.year: d for d in first_idx}
+    ymax = ax.get_ylim()[1]
+    for yr in highlight_years:
+        if yr in year_to_x:
+            ax.axvline(year_to_x[yr], color="black", lw=1.0,
+                       linestyle="--", alpha=0.6, zorder=3)
+            ax.text(year_to_x[yr], ymax, f" {yr}",
+                    fontsize=VC.TICK_FONT_SIZE - 1,
+                    va="top", ha="left", color="black", alpha=0.8)
+
+
+def plot_domain_timeseries_panels(
+    panels: list[dict],
+    suptitle: str = "Domain-averaged 2 m temperature, 1990–1999",
+    ylabel: str = "Temperature (°C)",
+    save_path=None,
+) -> plt.Figure:
+    """Combine multiple domain-timeseries aggregations into one figure.
+
+    Parameters
+    ----------
+    panels : list of dict
+        One entry per panel (top → bottom).  Each dict may contain:
+
+        ``title``           Short panel subtitle, e.g. ``"(a) Daily"``.
+        ``series_dict``     Required.  Aggregated pd.Series per dataset.
+        ``raw_series_dict`` Optional.  Raw daily series for band computation.
+        ``band_method``     ``"sd"`` | ``"percentile"`` | ``None``.
+        ``fill_dict``       Pre-computed band tuples (overrides band_method).
+        ``band_label``      Legend text for the band.
+        ``highlight_years`` List of years to mark (yearly panels only).
+        ``show_legend``     bool, default True for first panel, False otherwise.
+
+    suptitle : str
+        Figure-level title.
+    ylabel : str
+        Shared y-axis label.
+    save_path : str or Path, optional
+    """
+    _band_labels = {
+        "sd":          "Shaded: ±1 SD around the period mean",
+        "percentile":  "Shaded: 5th–95th percentile of values within each period",
+    }
+    n = len(panels)
+    palette = sns.color_palette("tab10", n_colors=2)
+
+    fig, axes = plt.subplots(n, 1, figsize=(12, 3.5 * n),
+                             gridspec_kw={"hspace": 0.45})
+    if n == 1:
+        axes = [axes]
+
+    # Build a shared colour map across all panels (same dataset → same colour)
+    all_labels = []
+    for p in panels:
+        all_labels.extend(p["series_dict"].keys())
+    unique_labels = list(dict.fromkeys(all_labels))
+    shared_colors = {lbl: palette[i % len(palette)]
+                     for i, lbl in enumerate(unique_labels)}
+
+    for pi, (ax, panel) in enumerate(zip(axes, panels)):
+        sd = panel["series_dict"]
+        rsd = panel.get("raw_series_dict")
+        bm  = panel.get("band_method", "sd")
+        fd  = panel.get("fill_dict")
+        bl  = panel.get("band_label") or _band_labels.get(bm, "Shaded band")
+        hy  = panel.get("highlight_years")
+        show_leg = panel.get("show_legend", pi == 0)
+
+        fd, freq = _prepare_timeseries_band(sd, rsd, bm, fd)
+        _draw_timeseries_panel(
+            ax, sd, shared_colors, fd,
+            band_label=bl, ylabel=ylabel,
+            title=panel.get("title", ""),
+            freq=freq,
+            highlight_years=hy,
+            show_legend=show_leg,
+        )
+
+    fig.suptitle(suptitle, fontsize=VC.TITLE_FONT_SIZE, y=1.01)
+    fig.autofmt_xdate(rotation=0, ha="center")
+    plt.tight_layout()
+
+    # Highlight year markers need stable ylim — draw after tight_layout
+    for ax, panel in zip(axes, panels):
+        sd   = panel["series_dict"]
+        freq = _infer_series_freq(sd)
+        _draw_highlight_years_post(ax, sd, freq, panel.get("highlight_years"))
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
 def plot_domain_timeseries(
     series_dict: dict[str, pd.Series],
     title: str = "Domain-averaged daily 2 m temperature",
     ylabel: str = "Temperature (°C)",
     colors: dict | None = None,
+    raw_series_dict: dict[str, pd.Series] | None = None,
+    band_method: str | None = "sd",
     fill_dict: dict | None = None,
+    band_label: str | None = None,
+    highlight_years: list[int] | None = None,
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot domain-averaged daily temperature time series for one or more datasets.
@@ -860,59 +1061,52 @@ def plot_domain_timeseries(
     Parameters
     ----------
     series_dict : dict
-        Keys are dataset labels (e.g. ``"ERA5-Land"``, ``"CMIP6 CESM2-WACCM"``);
-        values are pd.Series with a DatetimeIndex.
-    title : str
-        Figure title.
-    ylabel : str
-        Y-axis label.
-    colors : dict, optional
-        Map from label to colour string.  Defaults to a categorical palette.
+        Keys are dataset labels; values are aggregated pd.Series (monthly or
+        annual means) with a DatetimeIndex.
+    raw_series_dict : dict, optional
+        Same keys as *series_dict*; values are the raw daily pd.Series used to
+        compute the shaded band.  Required when *band_method* is set and
+        *fill_dict* is not provided.
+    band_method : {"sd", "percentile", None}
+        How to compute the shaded band around each line:
+        ``"sd"``         — mean ± 1 standard deviation of values within each
+                           period (conventional choice for trend plots).
+        ``"percentile"`` — 5th–95th percentile of values within each period.
+        ``None``         — no band.
     fill_dict : dict, optional
-        Pre-computed confidence bands.  Same keys as *series_dict*; values are
-        ``(lower_series, upper_series)`` tuples of pd.Series.  When provided,
-        a shaded band is drawn around the corresponding line.
+        Pre-computed bands (overrides *band_method*).  Same keys as
+        *series_dict*; values are ``(lower, upper)`` pd.Series tuples.
+    band_label : str, optional
+        Legend entry for the shaded band.  Auto-generated from *band_method*
+        when not provided.
+    highlight_years : list of int, optional
+        Calendar years to mark with a vertical dashed line and year label
+        (e.g. ``[1991, 1998]``).  Only meaningful for yearly aggregations.
     save_path : str or Path, optional
-
-    Returns
-    -------
-    matplotlib.figure.Figure
     """
+    _band_labels = {
+        "sd":          "Shaded: ±1 SD around the period mean",
+        "percentile":  "Shaded: 5th–95th percentile of values within each period",
+    }
+
     palette = sns.color_palette("tab10", n_colors=len(series_dict))
     colors = colors or {label: palette[i] for i, label in enumerate(series_dict)}
 
+    # Infer frequency and build fill bands
+    fill_dict, _freq = _prepare_timeseries_band(
+        series_dict, raw_series_dict, band_method, fill_dict,
+    )
+
     fig, ax = plt.subplots(figsize=(12, 4))
-    for label, series in series_dict.items():
-        idx = pd.to_datetime(series.index) if not isinstance(series.index, pd.DatetimeIndex) else series.index
-        ax.plot(idx, series.values, label=label, lw=1.2, color=colors[label])
-        if fill_dict and label in fill_dict:
-            lo, hi = fill_dict[label]
-            lo_idx = pd.to_datetime(lo.index) if not isinstance(lo.index, pd.DatetimeIndex) else lo.index
-            ax.fill_between(lo_idx, lo.values, hi.values,
-                            color=colors[label], alpha=VC.CI_ALPHA, linewidth=0)
-
-    ax.set_xlabel("Date", fontsize=VC.LABEL_FONT_SIZE)
-    ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
-    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
-    ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
-
-    # Legend: dataset lines + one proxy explaining the shaded band (if present)
-    handles, _ = ax.get_legend_handles_labels()
-    if fill_dict:
-        band_proxy = mpatches.Patch(
-            facecolor="gray", alpha=min(VC.CI_ALPHA * 1.8, 0.7), edgecolor="none",
-            label="Shaded: ±1 SD of daily values within each period",
-        )
-        handles = handles + [band_proxy]
-    ax.legend(handles=handles, framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
-    # Year-level x-axis ticks for multi-year series
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[4, 7, 10]))
+    _draw_timeseries_panel(
+        ax, series_dict, colors, fill_dict,
+        band_label=band_label or _band_labels.get(band_method, "Shaded band"),
+        ylabel=ylabel, title=title, freq=_freq,
+        highlight_years=highlight_years, show_legend=True,
+    )
     fig.autofmt_xdate(rotation=0, ha="center")
-    # Temperature tick formatting on y-axis
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
     plt.tight_layout()
+    _draw_highlight_years_post(ax, series_dict, _freq, highlight_years)
     if save_path:
         fig.savefig(save_path)
     return fig
@@ -1116,13 +1310,13 @@ def plot_monthly_climatology(
     series_dict: dict[str, pd.Series],
     title: str = "Monthly mean 2 m temperature climatology, 1990–1999",
     ylabel: str = "Temperature (°C)",
-    confidence_pct: float = VC.DEFAULT_CI_PCT,
+    band_method: str | None = "sd",
     save_path: str | Path = None,
 ) -> plt.Figure:
     """Plot monthly mean temperature climatology for multiple datasets.
 
-    A shaded confidence band is drawn around each line representing the
-    year-to-year variability for each calendar month (t-based CI).
+    A shaded band is drawn around each line representing year-to-year
+    variability for each calendar month.
 
     Parameters
     ----------
@@ -1131,26 +1325,28 @@ def plot_monthly_climatology(
         spanning the full study period.
     title : str
         Figure title.
-    confidence_pct : float
-        Width of the confidence band as a percentage (default 90%).
-        Set to 0 or None to suppress the band.
+    band_method : {"sd", "percentile", None}
+        How to compute the shaded band across the 10 annual means per month:
+        ``"sd"``         — mean ± 1 SD (conventional; default).
+        ``"percentile"`` — 5th–95th percentile of the 10 annual means.
+        ``None``         — no band.
     save_path : str or Path, optional
-
-    Returns
-    -------
-    matplotlib.figure.Figure
     """
+    _band_labels = {
+        "sd":         "Shaded: ±1 SD of annual means for each calendar month",
+        "percentile": "Shaded: 5th–95th percentile of annual means for each calendar month",
+    }
+
     month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     palette = sns.color_palette("tab10", n_colors=len(series_dict))
-    alpha_t = (1.0 - (confidence_pct or 0) / 100.0) / 2.0
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
     for i, (label, series) in enumerate(series_dict.items()):
         idx = pd.to_datetime(series.index) if not isinstance(series.index, pd.DatetimeIndex) else series.index
         monthly = series.copy()
         monthly.index = idx
-        # Build a (month × year) matrix of monthly means so CI reflects
+        # Build a (month × year) matrix of monthly means so the band reflects
         # year-to-year variability, not within-month daily noise
         yr_mo_means = monthly.groupby([monthly.index.year, monthly.index.month]).mean()
         month_year_mat = yr_mo_means.unstack(level=0)   # rows=month(1–12), cols=year
@@ -1158,16 +1354,17 @@ def plot_monthly_climatology(
         color = palette[i]
         ax.plot(climatology.index, climatology.values, marker="o", lw=1.8,
                 label=label, color=color)
-        if confidence_pct:
-            clim_std   = month_year_mat.std(axis=1, ddof=1)
-            clim_count = month_year_mat.count(axis=1)
-            # t-CI on the inter-annual mean for each calendar month
-            t_crit = stats.t.ppf(1.0 - alpha_t, df=(clim_count - 1).clip(lower=1))
-            se = clim_std / np.sqrt(clim_count)
+        if band_method == "sd":
+            sd = month_year_mat.std(axis=1, ddof=1)
+            lo, hi = climatology - sd, climatology + sd
+        elif band_method == "percentile":
+            lo = month_year_mat.quantile(0.05, axis=1)
+            hi = month_year_mat.quantile(0.95, axis=1)
+        else:
+            lo = hi = None
+        if lo is not None:
             ax.fill_between(
-                climatology.index,
-                (climatology - t_crit * se).values,
-                (climatology + t_crit * se).values,
+                climatology.index, lo.values, hi.values,
                 color=color, alpha=VC.CI_ALPHA, linewidth=0,
             )
 
@@ -1179,12 +1376,12 @@ def plot_monthly_climatology(
     ax.tick_params(axis="both", labelsize=VC.TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
 
-    # Legend: dataset lines + one proxy explaining the CI band
+    # Legend: dataset lines + one proxy explaining the band
     handles, labels_leg = ax.get_legend_handles_labels()
-    if confidence_pct:
+    if band_method:
         ci_proxy = mpatches.Patch(
             facecolor="gray", alpha=min(VC.CI_ALPHA * 1.8, 0.7), edgecolor="none",
-            label=f"Shaded: {int(confidence_pct)}% CI on inter-annual mean (±t·SE, n=10 yr)",
+            label=_band_labels.get(band_method, "Shaded band"),
         )
         handles = handles + [ci_proxy]
     ax.legend(handles=handles, framealpha=0.8, fontsize=VC.LEGEND_FONT_SIZE)
@@ -1791,6 +1988,8 @@ def compute_ols_residuals(paired_df: pd.DataFrame) -> pd.DataFrame:
     resid = (paired_df.loc[mask, "t2m"].values
              - np.polyval(coeffs, paired_df.loc[mask, "tas"].values))
     return pd.DataFrame({
+        "era5_lat": paired_df.loc[mask, "era5_lat"].values,
+        "era5_lon": paired_df.loc[mask, "era5_lon"].values,
         "cmip_lat": paired_df.loc[mask, "cmip_lat"].values,
         "cmip_lon": paired_df.loc[mask, "cmip_lon"].values,
         "day": paired_df.loc[mask, "day"].values,
@@ -2054,4 +2253,101 @@ def plot_residuals_by_month(
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, bbox_inches="tight", dpi=200)
+    return fig
+
+
+def plot_mean_residual_map(
+    resid_df: pd.DataFrame,
+    era5_lats: np.ndarray,
+    era5_lons: np.ndarray,
+    cmip_lats: np.ndarray,
+    cmip_lons: np.ndarray,
+    region: dict = None,
+    title: str = "Mean standardised OLS residual per ERA5-Land pixel, 1990–1999",
+    cbar_label: str = "Mean standardised residual",
+    highlight_box: dict = None,
+    save_path=None,
+) -> plt.Figure:
+    """Spatial map of the mean standardised OLS residual for each ERA5-Land pixel.
+
+    For each pixel, the residuals across all days are standardised (divided by
+    the global residual SD) and then averaged.  The resulting map reveals
+    systematic spatial patterns in the model error — positive values indicate
+    pixels where T2M is consistently under-predicted; negative values where it
+    is over-predicted.  The CMIP6 coarse grid is overlaid to relate the
+    per-pixel bias to the coarse-cell structure.
+
+    Parameters
+    ----------
+    resid_df : pd.DataFrame
+        Output of :func:`compute_ols_residuals`.  Must contain ``era5_lat``,
+        ``era5_lon``, and ``residual``.
+    era5_lats, era5_lons : np.ndarray
+        1-D coordinate arrays for the ERA5-Land grid (degrees).
+    cmip_lats, cmip_lons : np.ndarray
+        1-D CMIP6 cell-centre coordinates for the grid overlay.
+    region : dict, optional
+        Bounding box ``{"south", "north", "west", "east"}``.
+    title : str
+        Figure title.
+    cbar_label : str
+        Colorbar label.
+    highlight_box : dict, optional
+        If provided, draws a red rectangle on the map.  Keys:
+        ``lat_min``, ``lat_max``, ``lon_min``, ``lon_max``, ``label``.
+    save_path : str or Path, optional
+    """
+    region = region or _DEFAULT_REGION
+
+    # Standardise residuals globally (÷ SD across all pixel×day pairs)
+    resid_sd = resid_df["residual"].std(ddof=1)
+    std_resid = resid_df["residual"] / resid_sd
+
+    # Mean standardised residual per ERA5 pixel
+    mean_std = (
+        resid_df.assign(std_residual=std_resid)
+        .groupby(["era5_lat", "era5_lon"])["std_residual"]
+        .mean()
+    )
+
+    # Reconstruct 2D array on the ERA5 grid
+    grid = np.full((len(era5_lats), len(era5_lons)), np.nan)
+    lat_idx_map = {lat: i for i, lat in enumerate(era5_lats)}
+    lon_idx_map = {lon: j for j, lon in enumerate(era5_lons)}
+    for (lat, lon), val in mean_std.items():
+        i = lat_idx_map.get(lat)
+        j = lon_idx_map.get(lon)
+        if i is not None and j is not None:
+            grid[i, j] = val
+
+    # Symmetric colour limits centred on zero
+    abs_max = np.nanpercentile(np.abs(grid[~np.isnan(grid)]), 98)
+    vmin, vmax = -abs_max, abs_max
+
+    fig, axes = make_spatial_figure(ncols=1, region=region)
+    ax = axes[0]
+    im = ax.pcolormesh(
+        era5_lons, era5_lats, grid,
+        cmap="RdBu_r", vmin=vmin, vmax=vmax, shading="auto",
+    )
+    ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE, pad=6)
+    apply_map_formatting(ax, region)
+    _overlay_coarse_grid(ax, cmip_lats, cmip_lons)
+    if highlight_box:
+        _draw_highlight_box(
+            ax,
+            highlight_box["lat_min"], highlight_box["lat_max"],
+            highlight_box["lon_min"], highlight_box["lon_max"],
+            highlight_box.get("label", ""),
+        )
+
+    # Vertical colorbar to the right
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
     return fig
