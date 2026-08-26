@@ -1,5 +1,10 @@
 # Data files — too large for GitHub, kept locally only
-data/
+# 'data/*' rather than 'data/': git never looks inside a directory it has
+# excluded outright, so a negation for data/deploy would have no effect.
+data/*
+# The slim subset the deployed dashboard reads, built by
+# scripts/export_dashboard_data.py (~30 MB of parquet).
+!data/deploy/
 *.nc
 *.grib
 *.grib2

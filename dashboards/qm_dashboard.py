@@ -35,7 +35,23 @@ from src import quantile_windows as qw       # noqa: E402
 from src.predictors import PREDICTOR_NAMES   # noqa: E402
 from src.qm_visualization import PREDICTOR_LABELS, SCHEME_LABELS  # noqa: E402
 
-QM_DIR = ROOT / "data" / "cache" / "qm"
+def _resolve_data_dir() -> Path:
+    """Pick the data directory: the full local cache, else the committed subset.
+
+    ``data/cache/qm`` holds the full ~700 MB output of the pipeline and is
+    gitignored, so it is absent on a deployment. ``data/deploy`` holds the
+    committed subset built by ``scripts/export_dashboard_data.py``. The full
+    cache wins when present so local runs always see every combination.
+    """
+    full = ROOT / "data" / "cache" / "qm"
+    slim = ROOT / "data" / "deploy"
+    if (full / qmm.METRIC_FILES["metrics"]).exists():
+        return full
+    return slim
+
+
+QM_DIR = _resolve_data_dir()
+IS_SLIM = QM_DIR.name == "deploy"
 REGION = dict(south=24, north=38, west=30, east=38)
 
 st.set_page_config(
@@ -85,24 +101,65 @@ def load_slice(predictor: str, scheme: str, q: int, window_label: str) -> pd.Dat
 @st.cache_data(show_spinner=False)
 def available_predictors() -> list[str]:
     """Predictors that actually have percentile tables on disk."""
-    found = []
-    for name in PREDICTOR_NAMES:
-        if any(qmm.pct_table_path(QM_DIR, name, s).exists() for s in qw.SCHEMES):
-            found.append(name)
-    return found
+    metrics = load_aggregate("metrics")
+    if not metrics.empty:
+        scored = set(metrics["predictor"])
+        return [n for n in PREDICTOR_NAMES if n in scored]
+    # No aggregates: fall back to whatever percentile tables are on disk.
+    return [n for n in PREDICTOR_NAMES
+            if any(qmm.pct_table_path(QM_DIR, n, s).exists() for s in qw.SCHEMES)]
 
 
 @st.cache_data(show_spinner=False)
-def window_labels(predictor: str, scheme: str) -> list[str]:
-    """Chronological window labels for one (predictor, scheme) table."""
-    df = qmm.load_pct_table(
-        QM_DIR, predictor, scheme, columns=["window_id", "window_label"]
-    )
-    order = (
-        df.drop_duplicates("window_id")
+def window_labels(scheme: str) -> list[str]:
+    """Chronological window labels for one scheme.
+
+    Read from the small per-window aggregate rather than a percentile table.
+    The aggregate covers all four schemes even when only some percentile
+    tables shipped, and it avoids a multi-million-row read at startup.
+    """
+    agg = load_aggregate("window")
+    if agg.empty:
+        return []
+    part = agg[agg["scheme"] == scheme]
+    return (
+        part.drop_duplicates("window_id")
         .sort_values("window_id")["window_label"].astype(str).tolist()
     )
-    return order
+
+
+@st.cache_data(show_spinner=False)
+def schemes_with_points(predictor: str) -> list[str]:
+    """Schemes whose per-pixel percentile table is available for *predictor*.
+
+    Only these can back the point-level views. The aggregate-driven views work
+    for every scheme regardless.
+    """
+    return [s for s in qw.SCHEMES
+            if qmm.pct_table_path(QM_DIR, predictor, s).exists()]
+
+
+def points_available(predictors: list[str], scheme: str) -> bool:
+    """True when every selected predictor has point-level data for *scheme*."""
+    return all(scheme in schemes_with_points(p) for p in predictors)
+
+
+def _no_points_notice(scheme: str, predictors: list[str]) -> None:
+    """Explain that this view needs a percentile table that did not ship."""
+    have = sorted(
+        {s for p in predictors for s in schemes_with_points(p)},
+        key=qw.SCHEMES.index,
+    )
+    names = ", ".join(SCHEME_LABELS.get(s, s) for s in have) or "none"
+    st.info(
+        f"This view plots one point per pixel, which needs the full percentile "
+        f"table for **{SCHEME_LABELS.get(scheme, scheme)}** windows. "
+        f"That table is not part of this deployment.\n\n"
+        f"Available here: **{names}**. The Leaderboard and Diagnostics views "
+        f"cover all four window lengths.\n\n"
+        f"For every combination, run the pipeline locally: "
+        f"`python3 scripts/run_quantile_mapping.py`."
+    )
 
 
 def label_of(predictor: str) -> str:
@@ -128,7 +185,7 @@ PREDICTOR_COLORS = {
 
 if not QM_DIR.exists() or not available_predictors():
     st.error(
-        "No cached results found in `data/cache/qm/`.\n\n"
+        "No results found in `data/cache/qm/` or `data/deploy/`.\n\n"
         "Run the pipeline first:\n\n"
         "```bash\npython3 scripts/run_quantile_mapping.py\n```"
     )
@@ -167,7 +224,7 @@ sel_q = st.sidebar.selectbox(
     format_func=lambda q: f"P{q}",
 )
 
-labels = window_labels(sel_predictors[0], sel_scheme)
+labels = window_labels(sel_scheme)
 default_window = "1999-Q2" if "1999-Q2" in labels else labels[-1]
 sel_window = st.sidebar.selectbox(
     "Window instance",
@@ -249,6 +306,10 @@ if view == "Scatter":
         "correction the data asks for."
     )
 
+    if not points_available(sel_predictors, sel_scheme):
+        _no_points_notice(sel_scheme, sel_predictors)
+        st.stop()
+
     max_points = st.slider("Max points drawn per panel", 2_000, 60_000,
                            20_000, step=2_000)
 
@@ -317,11 +378,21 @@ if view == "Scatter":
 
 if view == "Maps":
     st.subheader("Where the percentile bias sits")
-    scope = st.radio(
-        "Averaging scope", ["Selected window", "All windows"],
-        horizontal=True,
-        help="'All windows' uses the precomputed per-pixel aggregate.",
-    )
+    has_points = points_available(sel_predictors, sel_scheme)
+    if has_points:
+        scope = st.radio(
+            "Averaging scope", ["Selected window", "All windows"],
+            horizontal=True,
+            help="'All windows' uses the precomputed per-pixel aggregate.",
+        )
+    else:
+        # Only the aggregate is available, so a single window cannot be shown.
+        scope = "All windows"
+        st.caption(
+            f"Averaged over all {SCHEME_LABELS.get(sel_scheme, sel_scheme)} "
+            f"windows. Single-window maps need the full percentile table, "
+            f"which is not part of this deployment."
+        )
 
     def bias_grid(predictor: str) -> pd.DataFrame:
         """Per-pixel mean bias for one predictor under the current scope."""
@@ -586,6 +657,29 @@ comes before empirical quantile mapping.
             .rename(columns={"gamma_per_km": "Γ (°C/km)", "season": "Season"})
             .style.format({"Γ (°C/km)": "{:+.2f}", "n": "{:,.0f}"}),
             use_container_width=True, hide_index=True,
+        )
+
+    if IS_SLIM:
+        st.subheader("About this deployment")
+        avail = sorted(
+            {sc for p in PREDICTOR_NAMES for sc in schemes_with_points(p)},
+            key=qw.SCHEMES.index,
+        )
+        names = ", ".join(SCHEME_LABELS.get(sc, sc) for sc in avail) or "none"
+        st.markdown(
+            f"""
+The full pipeline output is about 700 MB, almost all of it in the per-pixel
+percentile tables, so it cannot be committed to the repository. This
+deployment carries the five aggregate tables plus the percentile tables for:
+**{names}**.
+
+The Leaderboard and Diagnostics views cover all four window lengths, because
+the aggregates were computed over the whole grid. The Scatter view, and the
+single-window option in Maps, are limited to the window lengths listed above.
+
+To explore all 100 combinations, clone the repository and run
+`python3 scripts/run_quantile_mapping.py`.
+            """
         )
 
     st.subheader("Distribution windows")
