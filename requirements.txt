@@ -1,0 +1,35 @@
+# Python dependencies for the EMME statistical-downscaling project.
+#
+#   pip install -r requirements.txt
+#
+# CDO is optional. When the `cdo` binary is on PATH, src/interpolation.py uses
+# `cdo remapbil`; otherwise it falls back to scipy, which needs no extra
+# package. Cartopy is optional too — src/visualization.py implements the
+# geographic aspect correction and degree tick labels in plain matplotlib.
+
+# Core scientific stack
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+xarray>=2023.1
+statsmodels>=0.14
+
+# NetCDF back ends (h5netcdf is the fallback engine in data_io.open_dataset)
+netCDF4
+h5netcdf
+
+# Plotting
+matplotlib>=3.7
+seaborn>=0.12
+
+# Parquet I/O for the quantile-mapping cache tables
+pyarrow>=14.0
+
+# Notebooks
+jupyter
+nbformat
+ipywidgets
+
+# Dashboard (dashboards/qm_dashboard.py)
+streamlit>=1.40
+plotly>=5.20
