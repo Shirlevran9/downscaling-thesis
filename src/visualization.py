@@ -61,6 +61,11 @@ __all__ = [
     "plot_quarterly_warming_trend",
     "plot_combined_temperature_distribution",
     "plot_domain_timeseries_panels",
+    "plot_interpolation_comparison",
+    "compute_regression_metrics",
+    "plot_model_metrics_comparison",
+    "plot_elevation_map",
+    "plot_elevation_diagnostics",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1805,6 +1810,7 @@ def plot_scatter_regression(
     xlabel: str = "CMIP6 near-surface air temperature, TAS (°C)",
     ylabel: str = "ERA5-Land 2 m temperature, T2M (°C)",
     sample_frac: float = 0.005,
+    coarse_res: float = 1.0,
     region: dict = None,
     save_path: str | Path = None,
 ) -> plt.Figure:
@@ -1812,17 +1818,26 @@ def plot_scatter_regression(
 
     Panel (a): Hexbin density plot of all pixel × day pairs (subsampled for
     display efficiency).
-    Panel (b): Scatter of CMIP6 cell daily mean vs ERA5-Land cell mean with
+    Panel (b): Scatter of coarse-cell daily mean vs ERA5-Land cell mean with
     ordinary least-squares regression line.
+
+    For the nearest-neighbour paired DataFrame the grouping uses the
+    pre-computed ``cmip_lat``/``cmip_lon`` columns.  For the bilinear-
+    interpolated DataFrame (which carries no CMIP cell assignment) the ERA5
+    coordinates are rounded to the nearest *coarse_res* degree to approximate
+    CMIP6 cell grouping.
 
     Parameters
     ----------
     paired_df : pd.DataFrame
-        Full pixel × day paired DataFrame (from :func:`src.data_io.build_paired_dataframe`).
+        Full pixel × day paired DataFrame.
     x_col, y_col : str
         Column names for predictor (CMIP6) and target (ERA5-Land).
     sample_frac : float
         Fraction of rows used in the hexbin panel (default 0.5%).
+    coarse_res : float
+        Grid spacing (degrees) used to snap ERA5 coordinates to coarse cells
+        when ``cmip_lat``/``cmip_lon`` are absent (default 1.0°).
     save_path : str or Path, optional
 
     Returns
@@ -1852,9 +1867,26 @@ def plot_scatter_regression(
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
 
     # — Panel (b): cell-mean OLS —
+    # Determine grouping columns: use CMIP cell coords when available
+    # (NN paired_df), otherwise snap ERA5 coords to coarse grid (bilinear)
     ax = axes[1]
+    df_agg = paired_df[[x_col, y_col, "day", "era5_lat", "era5_lon"]].copy()
+    if "cmip_lat" in paired_df.columns and "cmip_lon" in paired_df.columns:
+        df_agg["_cell_lat"] = paired_df["cmip_lat"].values
+        df_agg["_cell_lon"] = paired_df["cmip_lon"].values
+        cell_label = "CMIP6 cell"
+    else:
+        # Round ERA5 coordinates to nearest coarse_res degree to form proxy cells
+        df_agg["_cell_lat"] = (
+            (paired_df["era5_lat"] / coarse_res).round() * coarse_res
+        ).values
+        df_agg["_cell_lon"] = (
+            (paired_df["era5_lon"] / coarse_res).round() * coarse_res
+        ).values
+        cell_label = f"~{coarse_res}° proxy cell"
+
     agg = (
-        paired_df.groupby(["cmip_lat", "cmip_lon", "day", x_col], observed=True)[y_col]
+        df_agg.groupby(["_cell_lat", "_cell_lon", "day", x_col], observed=True)[y_col]
         .mean()
         .reset_index()
         .rename(columns={y_col: f"{y_col}_mean"})
@@ -1873,7 +1905,10 @@ def plot_scatter_regression(
     ax.plot(x_line, x_line, "k--", lw=1, label="1:1 line")
     ax.set_xlabel(xlabel, fontsize=10)
     ax.set_ylabel(f"Cell-mean {ylabel}", fontsize=10)
-    ax.set_title(f"(b) CMIP6 cell mean vs ERA5-Land cell mean\nPearson r = {r:.3f}", fontsize=12)
+    ax.set_title(
+        f"(b) {cell_label} mean vs ERA5-Land mean\nPearson r = {r:.3f}",
+        fontsize=12,
+    )
     ax.legend(fontsize=9)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
@@ -1940,7 +1975,7 @@ def plot_residual_analysis(
     ax = axes[0]
     ax.scatter(df[x_col], df["residual"], s=1, alpha=0.15, color="steelblue", rasterized=True)
     ax.axhline(0, color="red", lw=1.2, linestyle="--")
-    ax.set_xlabel("CMIP6 TAS (°C)", fontsize=10)
+    ax.set_xlabel(f"{x_col} (°C)", fontsize=10)
     ax.set_ylabel("Residual T2M − Ŷ (°C)", fontsize=10)
     ax.set_title("(a) Residuals vs predictor\n(homoscedasticity check)", fontsize=12)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(_temp_formatter))
@@ -1954,47 +1989,69 @@ def plot_residual_analysis(
         # Smooth trend via binned means
         bins = np.linspace(df[dist_col].min(), df[dist_col].max(), 20)
         bin_labels = (bins[:-1] + bins[1:]) / 2
-        binned = df.groupby(pd.cut(df[dist_col], bins=bins))["residual"].mean()
+        binned = df.groupby(pd.cut(df[dist_col], bins=bins), observed=True)["residual"].mean()
         ax2.plot(bin_labels, binned.values, "k-", lw=1.8, label="Bin mean")
         ax2.set_xlabel("Distance to CMIP6 cell centre (°)", fontsize=10)
         ax2.set_ylabel("Residual T2M − Ŷ (°C)", fontsize=10)
         ax2.set_title("(b) Residuals vs distance from cell centre\n(spatial bias check)", fontsize=12)
         ax2.legend(fontsize=9)
 
-    fig.suptitle("Residual diagnostics — OLS (T2M ~ TAS)", fontsize=14, y=1.01)
+    fig.suptitle(f"Residual diagnostics — OLS (T2M ~ {x_col})", fontsize=14, y=1.01)
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path)
     return fig
 
 
-def compute_ols_residuals(paired_df: pd.DataFrame) -> pd.DataFrame:
-    """Fit a global OLS (T2M ~ TAS) and return per-pixel×day residuals.
+def compute_ols_residuals(
+    paired_df: pd.DataFrame,
+    predictor: str = "tas",
+) -> pd.DataFrame:
+    """Fit a global OLS (T2M ~ predictor) and return per-pixel×day residuals.
 
     Parameters
     ----------
     paired_df : pd.DataFrame
-        Output of ``build_paired_dataframe``.  Must contain ``tas``,
-        ``t2m``, ``cmip_lat``, ``cmip_lon``.
+        Output of ``build_paired_dataframe`` or ``build_interpolated_paired_df``.
+        Must contain ``t2m`` and the column named by *predictor*.
+    predictor : str
+        Name of the predictor column.  Use ``"tas"`` (default) for the
+        nearest-neighbour paired DataFrame, or ``"tas_interp"`` for the
+        bilinear-interpolated DataFrame.
 
     Returns
     -------
     pd.DataFrame
-        Lightweight DataFrame with columns ``cmip_lat``, ``cmip_lon``,
-        ``residual`` (one row per valid pixel × day pair).
+        Lightweight DataFrame with columns ``era5_lat``, ``era5_lon``,
+        ``cmip_lat`` (if present), ``cmip_lon`` (if present), ``day``,
+        and ``residual`` (one row per valid pixel × day pair).
     """
-    mask = np.isfinite(paired_df["tas"].values) & np.isfinite(paired_df["t2m"].values)
-    coeffs = np.polyfit(paired_df.loc[mask, "tas"], paired_df.loc[mask, "t2m"], 1)
-    resid = (paired_df.loc[mask, "t2m"].values
-             - np.polyval(coeffs, paired_df.loc[mask, "tas"].values))
-    return pd.DataFrame({
+    mask = (
+        np.isfinite(paired_df[predictor].values)
+        & np.isfinite(paired_df["t2m"].values)
+    )
+    coeffs = np.polyfit(
+        paired_df.loc[mask, predictor],
+        paired_df.loc[mask, "t2m"],
+        1,
+    )
+    resid = (
+        paired_df.loc[mask, "t2m"].values
+        - np.polyval(coeffs, paired_df.loc[mask, predictor].values)
+    )
+
+    out = {
         "era5_lat": paired_df.loc[mask, "era5_lat"].values,
         "era5_lon": paired_df.loc[mask, "era5_lon"].values,
-        "cmip_lat": paired_df.loc[mask, "cmip_lat"].values,
-        "cmip_lon": paired_df.loc[mask, "cmip_lon"].values,
         "day": paired_df.loc[mask, "day"].values,
         "residual": resid,
-    })
+    }
+    # Include CMIP cell coords only when present (NN paired_df)
+    if "cmip_lat" in paired_df.columns:
+        out["cmip_lat"] = paired_df.loc[mask, "cmip_lat"].values
+        out["cmip_lon"] = paired_df.loc[mask, "cmip_lon"].values
+
+    return pd.DataFrame(out)
 
 
 def _build_bin_groups(
@@ -2260,8 +2317,8 @@ def plot_mean_residual_map(
     resid_df: pd.DataFrame,
     era5_lats: np.ndarray,
     era5_lons: np.ndarray,
-    cmip_lats: np.ndarray,
-    cmip_lons: np.ndarray,
+    cmip_lats: np.ndarray | None = None,
+    cmip_lons: np.ndarray | None = None,
     region: dict = None,
     title: str = "Mean standardised OLS residual per ERA5-Land pixel, 1990–1999",
     cbar_label: str = "Mean standardised residual",
@@ -2274,8 +2331,8 @@ def plot_mean_residual_map(
     the global residual SD) and then averaged.  The resulting map reveals
     systematic spatial patterns in the model error — positive values indicate
     pixels where T2M is consistently under-predicted; negative values where it
-    is over-predicted.  The CMIP6 coarse grid is overlaid to relate the
-    per-pixel bias to the coarse-cell structure.
+    is over-predicted.  The CMIP6 coarse grid is overlaid when *cmip_lats* and
+    *cmip_lons* are provided.
 
     Parameters
     ----------
@@ -2284,8 +2341,9 @@ def plot_mean_residual_map(
         ``era5_lon``, and ``residual``.
     era5_lats, era5_lons : np.ndarray
         1-D coordinate arrays for the ERA5-Land grid (degrees).
-    cmip_lats, cmip_lons : np.ndarray
-        1-D CMIP6 cell-centre coordinates for the grid overlay.
+    cmip_lats, cmip_lons : np.ndarray, optional
+        1-D CMIP6 cell-centre coordinates for the grid overlay.  When omitted
+        (e.g. for the bilinear-interpolated model) the coarse grid is not drawn.
     region : dict, optional
         Bounding box ``{"south", "north", "west", "east"}``.
     title : str
@@ -2332,7 +2390,8 @@ def plot_mean_residual_map(
     )
     ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE, pad=6)
     apply_map_formatting(ax, region)
-    _overlay_coarse_grid(ax, cmip_lats, cmip_lons)
+    if cmip_lats is not None and cmip_lons is not None:
+        _overlay_coarse_grid(ax, cmip_lats, cmip_lons)
     if highlight_box:
         _draw_highlight_box(
             ax,
@@ -2348,6 +2407,342 @@ def plot_mean_residual_map(
     cbar.set_label(cbar_label, fontsize=VC.CBAR_LABEL_SIZE)
     cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
 
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
+# ===========================================================================
+# Interpolation comparison and model diagnostics (notebook 02_models)
+# ===========================================================================
+
+def plot_interpolation_comparison(
+    era5_clim: xr.DataArray,
+    nn_clim: xr.DataArray,
+    bilin_clim: xr.DataArray,
+    region: dict,
+    coarse_lats: np.ndarray | None = None,
+    coarse_lons: np.ndarray | None = None,
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Three-panel mean temperature comparison: ERA5 | NN | Bilinear.
+
+    Illustrates the difference between the block-like nearest-neighbour
+    predictor and the smooth bilinearly-interpolated predictor by placing
+    them alongside the ERA5-Land fine-resolution reference.
+
+    Parameters
+    ----------
+    era5_clim : xr.DataArray
+        Time-mean ERA5-Land T2M, dims ``(latitude, longitude)``.
+    nn_clim : xr.DataArray
+        Time-mean nearest-neighbour CMIP6 TAS remapped to ERA5 grid,
+        dims ``(latitude, longitude)``.
+    bilin_clim : xr.DataArray
+        Time-mean bilinearly-interpolated CMIP6 TAS,
+        dims ``(latitude, longitude)``.
+    region : dict
+        Bounding box ``{"south", "north", "west", "east"}``.
+    coarse_lats, coarse_lons : np.ndarray, optional
+        CMIP6 cell-centre coordinates for grid overlay on panels (b) and (c).
+    save_path : str or Path, optional
+        If provided, save the figure here.
+
+    Returns
+    -------
+    plt.Figure
+    """
+    all_vals = np.concatenate([
+        era5_clim.values[np.isfinite(era5_clim.values)],
+        nn_clim.values[np.isfinite(nn_clim.values)],
+        bilin_clim.values[np.isfinite(bilin_clim.values)],
+    ])
+    vmin = float(np.nanpercentile(all_vals, 2))
+    vmax = float(np.nanpercentile(all_vals, 98))
+
+    fig, axes = make_spatial_figure(ncols=3, region=region)
+    panels = [
+        (era5_clim,  "(a) ERA5-Land T2M",             False),
+        (nn_clim,    "(b) CMIP6 — nearest-neighbour", True),
+        (bilin_clim, "(c) CMIP6 — bilinear",          True),
+    ]
+
+    im = None
+    for ax, (da, title, show_grid) in zip(axes, panels):
+        lons = da.longitude.values if "longitude" in da.dims else da.lon.values
+        lats = da.latitude.values  if "latitude"  in da.dims else da.lat.values
+        im = ax.pcolormesh(
+            lons, lats, da.values,
+            cmap="RdYlBu_r", vmin=vmin, vmax=vmax,
+            shading="auto",
+        )
+        if show_grid and coarse_lats is not None and coarse_lons is not None:
+            _overlay_coarse_grid(ax, coarse_lats, coarse_lons)
+        ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+        apply_map_formatting(ax, region)
+
+    # Shared horizontal colorbar
+    cbar = fig.colorbar(
+        im, ax=axes, orientation="horizontal",
+        fraction=0.035, pad=0.08, aspect=40,
+        format=mticker.FuncFormatter(_temp_formatter),
+    )
+    cbar.set_label("Mean temperature (°C)", fontsize=VC.LABEL_FONT_SIZE)
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+
+    fig.suptitle(
+        "Predictor comparison: ERA5-Land vs CMIP6 interpolation methods",
+        fontsize=VC.TITLE_FONT_SIZE + 1, y=1.02,
+    )
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
+def compute_regression_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+) -> dict:
+    """Compute standard regression metrics for a fitted model.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        Observed values (ERA5-Land T2M).
+    y_pred : np.ndarray
+        Predicted values from the regression model.
+
+    Returns
+    -------
+    dict
+        Keys: ``r2``, ``rmse``, ``mae``, ``bias`` (mean signed error,
+        T2M − Ŷ), ``pearson_r``.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    mask = np.isfinite(y_true) & np.isfinite(y_pred)
+    y_true, y_pred = y_true[mask], y_pred[mask]
+
+    residuals = y_true - y_pred
+    ss_res = np.sum(residuals ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+    pearson_r, _ = stats.pearsonr(y_true, y_pred)
+
+    return dict(
+        r2=float(r2),
+        rmse=float(np.sqrt(np.mean(residuals ** 2))),
+        mae=float(np.mean(np.abs(residuals))),
+        bias=float(np.mean(residuals)),
+        pearson_r=float(pearson_r),
+    )
+
+
+def plot_model_metrics_comparison(
+    metrics_list: list[dict],
+    model_names: list[str],
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Grouped bar chart comparing regression metrics across models.
+
+    Produces a 2×2 layout with one sub-panel per metric (R², RMSE, MAE,
+    Bias) and one bar per model.
+
+    Parameters
+    ----------
+    metrics_list : list of dict
+        Each dict is the output of :func:`compute_regression_metrics`.
+    model_names : list of str
+        Display labels for each model (e.g. ``["NN", "Bilinear", "Bil+Elev"]``).
+    save_path : str or Path, optional
+        Save figure here if provided.
+
+    Returns
+    -------
+    plt.Figure
+    """
+    metrics_cfg = [
+        ("r2",       "R²",             ""),
+        ("rmse",     "RMSE",           "(°C)"),
+        ("mae",      "MAE",            "(°C)"),
+        ("bias",     "Bias  T2M − Ŷ", "(°C)"),
+    ]
+    n_models = len(model_names)
+    colours = [f"C{i}" for i in range(n_models)]
+    x = np.arange(n_models)
+
+    fig, axes = plt.subplots(2, 2, figsize=(9, 7))
+    axes_flat = axes.ravel()
+
+    for ax, (key, label, unit) in zip(axes_flat, metrics_cfg):
+        values = [m[key] for m in metrics_list]
+        bars = ax.bar(x, values, color=colours, width=0.55, edgecolor="white", linewidth=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(model_names, fontsize=VC.TICK_FONT_SIZE)
+        full_label = f"{label} {unit}".strip()
+        ax.set_ylabel(full_label, fontsize=VC.LABEL_FONT_SIZE)
+        ax.set_title(label, fontsize=VC.TITLE_FONT_SIZE)
+        ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+        if key == "bias":
+            ax.axhline(0, color="grey", lw=0.8, linestyle="--")
+        for bar, val in zip(bars, values):
+            ypos = bar.get_height() + 0.002 if val >= 0 else bar.get_height() - 0.002
+            va = "bottom" if val >= 0 else "top"
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                ypos,
+                f"{val:.3f}",
+                ha="center", va=va,
+                fontsize=VC.TICK_FONT_SIZE - 1,
+            )
+
+    fig.suptitle(
+        "Model comparison — regression metrics",
+        fontsize=VC.TITLE_FONT_SIZE + 1, y=1.01,
+    )
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
+def plot_elevation_map(
+    elev_da: xr.DataArray,
+    region: dict,
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Choropleth map of terrain elevation over the study domain.
+
+    Parameters
+    ----------
+    elev_da : xr.DataArray
+        2-D elevation DataArray (dims ``latitude``, ``longitude``) in metres.
+    region : dict
+        Bounding box ``{"south", "north", "west", "east"}``.
+    save_path : str or Path, optional
+        Save figure here if provided.
+
+    Returns
+    -------
+    plt.Figure
+    """
+    fig, axes = make_spatial_figure(ncols=1, region=region)
+    ax = axes[0]
+
+    lons = elev_da.longitude.values
+    lats = elev_da.latitude.values
+    vals = elev_da.values.astype(float)
+    finite = vals[np.isfinite(vals)]
+
+    # Keep negative values — the Dead Sea (≈ −430 m) and Jordan Rift Valley
+    # are genuine below-sea-level terrain and should not be clamped to 0.
+    # Use the actual data minimum (floor at −500 m) so the colourbar is not
+    # stretched by isolated ocean pixels at the domain edge.
+    vmin = max(float(np.nanmin(finite)), -500.0)
+    vmax = float(np.nanpercentile(finite, 99))
+
+    im = ax.pcolormesh(
+        lons, lats, vals,
+        cmap="terrain",
+        vmin=vmin,
+        vmax=vmax,
+        shading="auto",
+    )
+    apply_map_formatting(ax, region)
+    ax.set_title("Terrain elevation — ERA5-Land grid (0.1°)", fontsize=VC.TITLE_FONT_SIZE)
+
+    cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
+    cbar.set_label("Elevation (m a.s.l.)", fontsize=VC.LABEL_FONT_SIZE)
+    cbar.ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+
+    if save_path:
+        fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
+    return fig
+
+
+def plot_elevation_diagnostics(
+    paired_df: pd.DataFrame,
+    predictor: str = "tas_interp",
+    sample_n: int = 200_000,
+    n_bins: int = 20,
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Two-panel diagnostic: elevation vs OLS residual and vs raw bias.
+
+    Panel (a): elevation vs OLS residual (T2M − Ŷ) from the bilinear model.
+    Panel (b): elevation vs raw temperature difference (T2M − TAS_interp).
+
+    Parameters
+    ----------
+    paired_df : pd.DataFrame
+        Must contain ``t2m``, *predictor*, ``elevation``.
+        May contain a pre-computed ``residual`` column; if absent one is
+        derived from a fresh global OLS fit.
+    predictor : str
+        Predictor column name (default ``"tas_interp"``).
+    sample_n : int
+        Maximum rows to sub-sample for plotting speed.
+    n_bins : int
+        Number of elevation bins for the trend line.
+    save_path : str or Path, optional
+        Save figure here if provided.
+
+    Returns
+    -------
+    plt.Figure
+    """
+    df = paired_df.dropna(subset=["elevation", "t2m", predictor]).copy()
+
+    if "residual" not in df.columns:
+        mask = np.isfinite(df[predictor].values) & np.isfinite(df["t2m"].values)
+        coeffs = np.polyfit(df.loc[mask, predictor], df.loc[mask, "t2m"], 1)
+        df["residual"] = df["t2m"] - np.polyval(coeffs, df[predictor])
+
+    df["raw_bias"] = df["t2m"] - df[predictor]
+
+    if len(df) > sample_n:
+        df = df.sample(n=sample_n, random_state=42)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    for ax, ycol, ylabel, title in [
+        (ax1, "residual", "Residual  T2M − Ŷ (°C)",                    "(a) OLS residual vs elevation"),
+        (ax2, "raw_bias", f"Raw bias  T2M − {predictor} (°C)",         "(b) Raw bias vs elevation"),
+    ]:
+        hb = ax.hexbin(
+            df["elevation"], df[ycol],
+            gridsize=50, cmap="YlOrRd", mincnt=1,
+            linewidths=0.2,
+        )
+        ax.axhline(0, color="steelblue", lw=1.2, linestyle="--", label="Zero line")
+
+        # Binned-mean trend
+        elev_bins = np.linspace(df["elevation"].min(), df["elevation"].max(), n_bins + 1)
+        bin_centers, bin_means = [], []
+        for lo, hi in zip(elev_bins[:-1], elev_bins[1:]):
+            sub = df.loc[(df["elevation"] >= lo) & (df["elevation"] < hi), ycol]
+            if len(sub) >= 10:
+                bin_centers.append((lo + hi) / 2)
+                bin_means.append(sub.mean())
+        if bin_centers:
+            ax.plot(
+                bin_centers, bin_means,
+                color="black", lw=2, marker="o", markersize=4, label="Bin mean",
+            )
+
+        ax.set_xlabel("Elevation (m a.s.l.)", fontsize=VC.LABEL_FONT_SIZE)
+        ax.set_ylabel(ylabel, fontsize=VC.LABEL_FONT_SIZE)
+        ax.set_title(title, fontsize=VC.TITLE_FONT_SIZE)
+        ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
+        ax.legend(fontsize=VC.LEGEND_FONT_SIZE)
+        cb = fig.colorbar(hb, ax=ax, pad=0.01)
+        cb.set_label("Count", fontsize=VC.TICK_FONT_SIZE)
+        cb.ax.tick_params(labelsize=VC.TICK_FONT_SIZE - 1)
+
+    plt.tight_layout()
     if save_path:
         fig.savefig(save_path, bbox_inches="tight", dpi=VC.SAVE_DPI)
     return fig

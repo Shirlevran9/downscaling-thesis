@@ -24,6 +24,7 @@ __all__ = [
     "to_celsius",
     "align_calendars",
     "build_paired_dataframe",
+    "build_interpolated_paired_df",
     "seasonal_split",
     "compute_global_daily_mean",
 ]
@@ -349,6 +350,72 @@ def build_paired_dataframe(
             "day": np.repeat(dates, n_land),
             "t2m": era5_vals.ravel(),
             "tas": cmip_vals.ravel(),
+        }
+    ).dropna(subset=["t2m"])
+
+    return df.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Paired pixel × day DataFrame — bilinear-interpolated predictor
+# ---------------------------------------------------------------------------
+
+def build_interpolated_paired_df(
+    era5_temp: xr.DataArray,
+    tas_interp_da: xr.DataArray,
+    land_mask_2d: np.ndarray,
+    shared_dates: list[str],
+) -> pd.DataFrame:
+    """Build a paired pixel × day DataFrame using a bilinearly-interpolated predictor.
+
+    This function is the counterpart of :func:`build_paired_dataframe` for the
+    case where the CMIP6 TAS field has already been remapped to the ERA5-Land
+    0.1° grid (e.g. via CDO ``remapbil`` or :func:`src.interpolation.interpolate_cmip_to_era5`).
+    Because both grids are identical, no nearest-neighbour assignment is
+    needed: each ERA5 land pixel is paired directly with the co-located
+    interpolated TAS value.
+
+    Parameters
+    ----------
+    era5_temp : xr.DataArray
+        ERA5-Land 2 m temperature, aligned to *shared_dates*,
+        dimensions ``(time, latitude, longitude)``, in °C.
+    tas_interp_da : xr.DataArray
+        Bilinearly-interpolated CMIP6 TAS, same spatial grid as *era5_temp*,
+        aligned to *shared_dates*, dimensions ``(time, latitude, longitude)``,
+        in °C.  Coordinate names must be ``latitude`` and ``longitude``.
+    land_mask_2d : np.ndarray
+        2-D boolean array (True = land), shape ``(n_lat, n_lon)`` matching the
+        ERA5-Land spatial grid.
+    shared_dates : list of str
+        Sorted list of ``"YYYY-MM-DD"`` date strings.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``era5_lat``, ``era5_lon``, ``day`` (datetime),
+        ``t2m`` (ERA5-Land °C), ``tas_interp`` (bilinear CMIP6 °C).
+        Rows with missing ERA5-Land values (ocean pixels) are dropped.
+    """
+    era5_lats = era5_temp.latitude.values
+    era5_lons = era5_temp.longitude.values
+
+    land_rows, land_cols = np.where(land_mask_2d)
+    n_land = len(land_rows)
+    n_time = len(shared_dates)
+
+    era5_vals = era5_temp.values[:, land_rows, land_cols]      # (n_time, n_land)
+    interp_vals = tas_interp_da.values[:, land_rows, land_cols]  # (n_time, n_land)
+
+    dates = pd.to_datetime(shared_dates)
+
+    df = pd.DataFrame(
+        {
+            "era5_lat": np.tile(era5_lats[land_rows], n_time),
+            "era5_lon": np.tile(era5_lons[land_cols], n_time),
+            "day": np.repeat(dates, n_land),
+            "t2m": era5_vals.ravel(),
+            "tas_interp": interp_vals.ravel(),
         }
     ).dropna(subset=["t2m"])
 
