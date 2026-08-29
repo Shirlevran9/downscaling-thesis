@@ -23,5 +23,8 @@ __pycache__/
 *.docx
 comments-outline17042026.txt
 Shell\ commands.rtf
-plots/
+# Generated figures are local-only, except the quantile-mapping set, which is
+# embedded in summaries/quantile_mapping_findings.md and must render on GitHub.
+plots/*
+!plots/fig_q*.png
 history/
