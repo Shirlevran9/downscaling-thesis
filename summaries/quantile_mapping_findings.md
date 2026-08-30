@@ -8,7 +8,7 @@ Our earlier baseline paired each day in CMIP6 with the same day in ERA5-Land and
 
 ## Methods
 
-### 1. Data structure and grid representation
+### 1. What a CMIP6 and an ERA5-Land grid value represent
 
 **CMIP6 temperature.** We use `tas` from CESM2-WACCM (historical, r1i1p1f1). The variable is near-surface air temperature at about 2 m. The important detail is that it is not a point estimate at the cell centre. The file says so in its own metadata:
 
@@ -37,13 +37,13 @@ The cell average wins. Put both in one regression and the cell mean keeps a sens
 
 One point matters for how we read our own results. ERA5-Land is not an independent fine-scale observation. Muñoz-Sabater et al. (2021) describe it as high-resolution runs of the ECMWF land surface model driven by downscaled ERA5 forcing. When ECMWF downscale that forcing from 31 km to 9 km, they already correct the air temperature for the orography difference, using "a daily environmental lapse rate (ELR) field derived from ERA5". So part of the height signal we measure was put there by ECMWF, not observed. Our own height correction spans a much larger gap, so this is not fatal, but it is a real caveat.
 
-### 2. Elevation data
+### 2. Elevation data and the coarse orography
 
 We used ETOPO (ice surface, 1 arc-minute), downloaded from the NOAA CoastWatch ERDDAP server for our bounding box. It is cached locally and regridded once by linear interpolation onto the 0.1° ERA5-Land grid, giving `h_fine(p)` at every pixel. The code is in `src/elevation.py`.
 
 To get the coarse model's effective terrain we averaged that fine elevation inside each CMIP6 cell, using every pixel, land and sea. This stands in for the model's real `orog` field, which we did not have. Fetching the real `orog` would make it exact and is on the next-steps list.
 
-### 3. Matching the fine grid
+### 3. Regridding the coarse field onto the fine grid
 
 The coarse grid is about 100 km per cell and the fine grid is about 10 km. Every fine pixel needs a coarse value, and there is more than one way to produce one. That choice is our first hyper-parameter.
 
@@ -59,7 +59,7 @@ COARSE (CMIP6, ~100 km)              FINE (ERA5-Land, ~10 km)
 
 Once every pixel has a predicted value, we take a block of days and compare two distributions at that pixel: the observed one (Y) and the predicted one (X). We never ask which day is which. We only ask whether the two sets of numbers have the same shape, and we measure shape with percentiles. Bias is defined as `X − Y`, so a positive bias means the predictor is too warm.
 
-### 4. The three hyper-parameters
+### 4. Hyper-parameters: windows, percentiles and predictors
 
 Three hyper-parameters, run in every combination: 5 predictors × 4 windows × 5 percentiles = 100 combinations, over about 7,700 land pixels.
 
@@ -132,6 +132,27 @@ On naming: this is bilinear in longitude and latitude plus linear in height. It 
 
 The first three all land near 7 °C and are all about 3 °C too warm, because none of them knows the mountain is there. The fitted Γ nearly fixes it. The fixed −6.5 °C/km overshoots and ends up worse than doing nothing.
 
+### 5. How the error is measured
+
+For every one of the 100 combinations we compare the predicted percentile X against the observed percentile Y at each (window, pixel) pair, and summarise the difference with six numbers.
+
+| Metric | Definition | What it tells us |
+|---|---|---|
+| Bias | `mean(X − Y)` | Average signed error. Positive means the predictor is too warm. |
+| MAE | `mean(abs(X − Y))` | Average size of the error, regardless of direction. |
+| RMSE | `sqrt(mean((X − Y)²))` | Like MAE but punishes large errors more, so it is sensitive to a few bad pixels. |
+| Spread | standard deviation of `X − Y` | How much the error varies from pixel to pixel. |
+| r | Pearson correlation of X and Y | Whether the predictor ranks pixels in the right order. |
+| OLS slope | slope from regressing Y on X | The shape a correction would need. |
+
+**MAE is our headline number.** Bias alone can hide a bad predictor, because errors of +5 and −5 average to zero. MAE counts both.
+
+**Spread is the one that matters for the next step.** A single constant correction can remove the mean bias but cannot remove the spread, so the spread is roughly the error that would still be left after the simplest possible fix.
+
+**The OLS slope says what kind of correction is needed.** A slope of 1.0 means the error is a pure offset, so a correction only has to add a number. A slope far from 1.0 means the error grows or shrinks with temperature, so the correction needs a slope of its own.
+
+All metrics are computed over land pixels only, pooled across every window of the chosen length.
+
 ---
 
 ## Findings
@@ -188,7 +209,7 @@ Trilinear with a fitted Γ wins, at every window length and every percentile. It
 
 Two results were not obvious beforehand. More smoothing is worse: `knn9` is last on every metric, behind `knn4`, behind `bilinear`, because averaging nine cells throws away the local gradient. And the lowest bias is not the best predictor: `trilinear_fixed` has the smallest mean bias but a higher MAE, a wider spread and a slope of 0.934, because it overcorrects in some places and undercorrects in others.
 
-### Window length, percentile and season
+### Effect of window length, percentile and season
 
 Longer windows are always better. MAE falls from 2.62 °C at 14 days to 1.81 °C at one year, with no exceptions, so sampling noise beats seasonal detail. Part of the 14-day error is noise in the target itself, so do not read it as the predictors failing at short time scales.
 
