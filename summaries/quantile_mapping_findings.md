@@ -250,29 +250,117 @@ In practice we use `cdo remapbil` when CDO is installed, and fall back to a
 
 This is where the biggest improvement comes from, so it is worth going slowly.
 
-#### The problem
+#### The problem: what a grid value actually means
 
-A coarse cell is about 100 km across. Its temperature represents the *average*
-terrain of that whole area. If there is a mountain inside the cell, the model
-does not know. The cell reports one value based on its average height.
+This deserves care, because the whole height correction rests on it. A natural
+assumption is that a value at (lat, lon) is an estimate *at that exact point*,
+so its elevation is the true elevation of that point. For these two datasets
+that is not the case, and it is worth being precise about why.
 
-But air cools as you go up. A pixel on a mountain top is genuinely colder than
-the cell average. Bilinear interpolation cannot fix this, because none of the
-four cells knows the mountain is there.
+**CMIP6 is explicitly a grid-cell area mean.** Our file says so in its own
+metadata:
 
 ```
-   What the coarse model sees:        What is really there:
+tas.cell_methods   = "area: time: mean"
+tas.cell_measures  = "area: areacella"
+source             = CAM6 (0.9x1.25 finite volume grid)
+lat_bnds, lon_bnds = present   (each cell has an explicit footprint)
+```
+
+Under CF conventions, `area: mean` means the value is an average over the
+horizontal extent defined by the cell bounds — not a point measurement at the
+coordinate. CESM2 uses a finite-volume dynamical core, which solves for cell
+averages by construction. The `lat_bnds` and `lon_bnds` arrays give each cell
+its footprint: our cells span 0.942° of latitude and 1.25° of longitude.
+
+**But the model does not average temperatures over varying terrain.** This is
+the part worth stating carefully. Inside a cell the model has only *one* land
+surface, at *one* height. That height comes from the model's orography, which is
+built by averaging a high-resolution elevation dataset over the cell and then
+smoothing it further for numerical stability. The physics runs once, on that
+single smoothed surface.
+
+So the chain is:
+
+```
+   real terrain in the cell
+        |
+        |  averaged + smoothed when the model was built
+        v
+   ONE model surface height  (roughly the cell-average elevation)
+        |
+        |  model physics runs here, once
+        v
+   ONE temperature, valid for the cell as a whole
+```
+
+The practical consequence is the same either way: **the temperature belongs to
+roughly the cell-average height, not to the true height at the centre
+coordinate.** But the mechanism is worth getting right — it is a smoothed
+surface, not a blend of many surfaces.
+
+**We checked this against our own data.** For the 105 coarse cells inside the
+domain we compared two candidate elevations: the true ETOPO elevation at the
+exact cell-centre coordinate, and the ETOPO elevation averaged over the cell
+footprint. They differ by 181 m on average and by up to 1,122 m. Regressing the
+decadal-mean CMIP6 temperature on latitude, longitude and elevation:
+
+| Elevation used | R² | Implied lapse rate |
+|---|---|---|
+| Latitude + longitude only | 0.791 | — |
+| + elevation at the centre point | 0.844 | −0.72 °C/km |
+| + elevation averaged over the cell | **0.871** | **−0.97 °C/km** |
+
+The cell average explains more. Putting both in the same regression is more
+telling still: the cell average keeps a physically sensible negative coefficient
+(−2.40 °C/km) while the centre-point value flips to a nonsensical *positive*
+one (+1.37 °C/km). That is the signature of a variable that was only ever acting
+as a noisy stand-in for the real driver.
+
+The data agrees with the metadata. CMIP6 temperature responds to the cell's
+average height.
+
+**ERA5-Land is a different case.** It carries no `cell_methods` at all — it is
+GRIB output from a land surface model on a 0.1° grid. Each grid box likewise has
+a single orography height, so it is a grid-box value rather than a true point
+value. But at 9 km the box is small, so the distinction matters far less than it
+does at 100 km.
+
+There is a more important point about ERA5-Land, which affects how we read our
+own results. ERA5-Land is not an independent fine-scale observation. It is made
+by running ECMWF's land surface model on a 9 km grid, forced by ERA5 at 31 km.
+When ECMWF downscales that forcing, they **already apply a lapse-rate
+correction** for the difference between the 31 km and 9 km orographies, using a
+daily environmental lapse rate derived from ERA5's own temperature profiles
+(Muñoz-Sabater et al. 2021).
+
+In other words, part of the elevation signal we are measuring in ERA5-Land was
+put there by a lapse-rate correction of exactly the same *kind* as ours — just
+between a different pair of orographies. This does not invalidate what we did:
+our `dz` is between the CMIP6 orography and the ERA5-Land orography, a much
+larger gap than the one ECMWF closed. But it does mean our fitted Γ is partly
+recovering a relationship that ECMWF built in, rather than one measured purely
+from observations. Section 11 lists this as a caveat.
+
+#### The picture
+
+```
+   What the coarse model has:         What is really there:
 
    ~~~~~~~~~~~~~~~~~~~~~~~~~~              /\
-   average height 463 m                   /  \  peak 1606 m
-   one temperature: 7.3 C                /    \
-                                    ____/      \____
+   ONE smoothed surface,                  /  \  peak 1606 m
+   height ~463 m                         /    \
+   ONE temperature: 7.3 C            ____/      \____
    ==========================       ================
         100 km wide cell                100 km wide cell
 
                           dz = 1606 - 463 = +1143 m
                           the height the model cannot see
 ```
+
+Air cools as you go up, so a pixel on a mountain top is genuinely colder than a
+smoothed surface 1,143 m below it. Bilinear interpolation cannot fix this,
+because none of the four cells knows the mountain is there.
 
 #### Step 1 — build `dz`, the hidden terrain
 
@@ -649,7 +737,18 @@ use the difference between the two fitted surfaces as the correction. This would
 give a smooth correction field with few parameters, which should generalise
 better to a future period than a per-pixel lookup.
 
-**6. Widen the scope.** Currently one GCM (CESM2-WACCM, r1i1p1f1) and one decade.
+**6. Use the model's real orography.** CMIP6 publishes each model's own
+orography as the `orog` variable in the `fx` table. We approximated it by
+averaging ETOPO into coarse cells. Downloading the real `orog` for CESM2-WACCM
+would make `dz` exact rather than inferred, and is a small job.
+
+**7. Separate our Γ from ERA5-Land's built-in one.** ERA5-Land's temperature
+already carries a daily lapse-rate correction applied by ECMWF between the 31 km
+and 9 km orographies. Comparing our fitted Γ against ERA5 at 31 km, as well as
+ERA5-Land at 9 km, would show how much of our Γ is a genuine physical signal and
+how much is inherited from that construction.
+
+**8. Widen the scope.** Currently one GCM (CESM2-WACCM, r1i1p1f1) and one decade.
 The plan is six GCMs, the full Mediterranean basin, and training on 1980–2004
 with 2005–2014 and 2015–2025 as test periods.
 
@@ -666,7 +765,20 @@ with 2005–2014 and 2015–2025 as test periods.
 - **Land pixels only.** ~7,700 pixels, 67% of the domain. ERA5-Land has no data
   over sea.
 - **Our coarse orography is inferred,** by averaging ETOPO into coarse cells.
-  It is not the actual orography CESM2-WACCM was run with, which we do not have.
+  It is not the actual orography CESM2-WACCM was run with. CMIP6 publishes that
+  field as the `orog` variable in the `fx` table; fetching it for CESM2-WACCM
+  would remove this approximation and is worth doing.
+- **ERA5-Land already contains a lapse-rate correction.** It is produced by
+  forcing a land surface model at 9 km with ERA5 at 31 km, and the forcing
+  temperature is corrected for the orography difference using a daily
+  environmental lapse rate derived from ERA5 (Muñoz-Sabater et al. 2021). So
+  part of the height signal we fit Γ against was built in by ECMWF rather than
+  measured. Our `dz` spans a much larger orography gap than the one ECMWF
+  closed, so the effect is not fatal, but Γ should not be read as a purely
+  observed lapse rate.
+- **ERA5-Land is not an independent observation.** It is a model product
+  constrained by observations, not a station network. Where it is wrong, we
+  inherit the error as if it were truth.
 
 ---
 
@@ -713,4 +825,16 @@ python3 -m streamlit run dashboards/qm_dashboard.py
   Climatology*, 39, 3750–3785. — EQM variants, Appendix A.
 - **Maraun, D., & Widmann, M. (2018).** *Statistical Downscaling and Bias
   Correction for Climate Research.* Cambridge University Press.
+- **Muñoz-Sabater, J., et al. (2021).** ERA5-Land: a state-of-the-art global
+  reanalysis dataset for land applications. *Earth System Science Data*, 13,
+  4349–4383. https://essd.copernicus.org/articles/13/4349/2021/ — describes the
+  9 km production chain and the daily environmental-lapse-rate correction
+  applied to the forcing temperature.
+- **Danielson, J., et al. (2020).** Environmental lapse rate for high-resolution
+  land surface downscaling: an application to ERA5. *Earth and Space Science*,
+  7, e2019EA000984. — the daily-ELR method used in ERA5-Land, and why it beats a
+  constant lapse rate.
+- **CF Conventions v1.11**, §7.3 `cell_methods`.
+  https://cfconventions.org/ — `area: mean` denotes an average over the cell's
+  horizontal extent, not a point value.
 - **Nirel, R. (2026).** *On the baseline model*, internal note, 16 August 2026.
