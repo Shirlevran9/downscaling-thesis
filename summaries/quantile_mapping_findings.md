@@ -8,7 +8,7 @@ Our earlier baseline paired each day in CMIP6 with the same day in ERA5-Land and
 
 ## Methods
 
-### 1. What the data actually is
+### 1. Data structure and grid representation
 
 **CMIP6 temperature.** We use `tas` from CESM2-WACCM (historical, r1i1p1f1). The variable is near-surface air temperature at about 2 m. The important detail is that it is not a point estimate at the cell centre. The file says so in its own metadata:
 
@@ -43,7 +43,7 @@ We used ETOPO (ice surface, 1 arc-minute), downloaded from the NOAA CoastWatch E
 
 To get the coarse model's effective terrain we averaged that fine elevation inside each CMIP6 cell, using every pixel, land and sea. This stands in for the model's real `orog` field, which we did not have. Fetching the real `orog` would make it exact and is on the next-steps list.
 
-### 3. General approach
+### 3. Matching the fine grid
 
 The coarse grid is about 100 km per cell and the fine grid is about 10 km. Every fine pixel needs a coarse value, and there is more than one way to produce one. That choice is our first hyper-parameter.
 
@@ -59,7 +59,7 @@ COARSE (CMIP6, ~100 km)              FINE (ERA5-Land, ~10 km)
 
 Once every pixel has a predicted value, we take a block of days and compare two distributions at that pixel: the observed one (Y) and the predicted one (X). We never ask which day is which. We only ask whether the two sets of numbers have the same shape, and we measure shape with percentiles. Bias is defined as `X − Y`, so a positive bias means the predictor is too warm.
 
-### 4. Detailed approach
+### 4. The three hyper-parameters
 
 Three hyper-parameters, run in every combination: 5 predictors × 4 windows × 5 percentiles = 100 combinations, over about 7,700 land pixels.
 
@@ -136,19 +136,21 @@ The first three all land near 7 °C and are all about 3 °C too warm, because no
 
 ## Findings
 
-### The median, one slice
+### Predicted against observed median, one window
 
 ![Median scatter](../plots/fig_q02_focus_scatter.png)
 
-Each dot is one land pixel. The x-axis is the predicted median for April–June 1999 and the y-axis is the observed median for the same block. Colour is elevation. The dashed line is 1:1, where a perfect predictor would sit.
+**Fig. 1.** *Predicted against observed median temperature for a single distribution window.* Each point is one ERA5-Land land pixel (n ≈ 7,700). X axis: median of the bilinear predictor across the window. Y axis: median of the observed temperature at the same pixel and window. Point colour: terrain elevation (m a.s.l.). Dashed line: 1:1. Red line: ordinary least squares fit of observed on predicted. Data: ERA5-Land 2 m temperature and bilinearly regridded CMIP6 CESM2-WACCM TAS, April–June 1999, 24–38°N 30–38°E.
 
-Two things stand out. Most dots fall below the 1:1 line, so the predictor is generally too warm. And the dots furthest below are systematically the high-elevation ones, while the low-lying pixels sit close to the line. The error is not random. It follows the terrain.
+Two things stand out in Fig. 1. Most points fall below the 1:1 line, so the predictor is generally too warm. And the points furthest below are systematically the high-elevation ones, while the low-lying pixels sit close to the line. The error is not random. It follows the terrain.
 
-### The error against elevation
+### Bias against terrain elevation
 
 ![Bias vs elevation](../plots/fig_q09_bias_vs_elevation.png)
 
-This is the main result. It shows mean bias against elevation for quarterly windows at the median, with bins holding equal numbers of pixels.
+**Fig. 2.** *Mean percentile bias against terrain elevation, by predictor.* X axis: elevation (m a.s.l.), grouped into ten bins holding equal numbers of pixels and plotted at the bin centre, so the spacing reflects the domain's skew toward low ground. Y axis: mean bias, predictor minus observation, in °C; the dashed line marks zero. One line per predictor. Shaded band: ±1 standard deviation of the bias within each bin. Data: quarterly windows at the median, ERA5-Land and CMIP6 CESM2-WACCM, 1990–1999, land pixels of 24–38°N 30–38°E.
+
+This is the main result of the study.
 
 | Predictor | Bias at −220 m | Bias at 2,197 m | Spread in top bin |
 |---|---|---|---|
@@ -158,17 +160,19 @@ This is the main result. It shows mean bias against elevation for quarterly wind
 | Trilinear (fitted Γ) | +0.37 | **+2.48** | **2.34** |
 | Trilinear (−6.5 °C/km) | +0.67 | **+0.27** | 2.89 |
 
-Below about 700 m all five predictors agree and are nearly unbiased. Above that the three without a height term climb steeply, to between +4.5 and +5.1 °C. This is not a small corner of the domain, since 18% of our land pixels sit above 1,000 m and the median land pixel is at 497 m. For those three predictors the per-pixel bias correlates with elevation at r ≈ 0.75 to 0.82. Terrain is not one error among several, it is the error.
+Below about 700 m all five predictors agree and are nearly unbiased (Fig. 2). Above that the three without a height term climb steeply, to between +4.5 and +5.1 °C. This is not a small corner of the domain, since 18% of our land pixels sit above 1,000 m and the median land pixel is at 497 m. For those three predictors the per-pixel bias correlates with elevation at r ≈ 0.75 to 0.82. Terrain is not one error among several, it is the error.
 
 The fitted Γ halves the high-elevation bias. The fixed −6.5 °C/km flattens the average almost completely, but look at the last column: its spread in the top bin is the worst of all five. It gets the average right by scattering individual pixels further from the truth.
 
-### The same thing on a map
+### Spatial distribution of the bias
 
 ![Bias maps](../plots/fig_q11_bias_map_grid.png)
 
-In panels (a) to (c) the red follows the topography exactly, along the Anatolian highlands, the Levantine mountains and the Hijaz escarpment. The blue streak near 35.5°E is the Jordan Valley, which lies below sea level, so there the coarse grid is too cold instead. Panel (d), the fitted Γ, is visibly flatter. Panel (e), the fixed Γ, is flatter on average but speckled, which is the extra spread seen in the table above. The dark blue island is Cyprus, and it shows the failure mode: a mostly-sea coarse cell has an average height near zero, so `dz` becomes the pixel's entire elevation and the correction fires at full strength.
+**Fig. 3.** *Mean median bias per pixel, by predictor.* X axis: longitude. Y axis: latitude, with the display aspect ratio corrected for the domain's mean latitude. Colour: mean bias, predictor minus observation, in °C, averaged over all 40 quarterly windows, on a diverging scale centred at zero and shared by every panel; red is too warm, blue too cold. Grey lines: CMIP6 cell boundaries. Panels (a)–(e): k-NN k=4, k-NN k=9, bilinear, trilinear with fitted Γ, trilinear with −6.5 °C/km. Data: ERA5-Land and CMIP6 CESM2-WACCM, 1990–1999, land pixels of 24–38°N 30–38°E.
 
-### Which predictor won
+In panels (a) to (c) of Fig. 3 the red follows the topography exactly, along the Anatolian highlands, the Levantine mountains and the Hijaz escarpment. The blue streak near 35.5°E is the Jordan Valley, which lies below sea level, so there the coarse grid is too cold instead. Panel (d), the fitted Γ, is visibly flatter. Panel (e), the fixed Γ, is flatter on average but speckled, which is the extra spread seen in the table above. The dark blue island is Cyprus, and it shows the failure mode: a mostly-sea coarse cell has an average height near zero, so `dz` becomes the pixel's entire elevation and the correction fires at full strength.
+
+### Skill metrics by predictor
 
 Averaged over all four windows and all five percentiles:
 
@@ -184,7 +188,7 @@ Trilinear with a fitted Γ wins, at every window length and every percentile. It
 
 Two results were not obvious beforehand. More smoothing is worse: `knn9` is last on every metric, behind `knn4`, behind `bilinear`, because averaging nine cells throws away the local gradient. And the lowest bias is not the best predictor: `trilinear_fixed` has the smallest mean bias but a higher MAE, a wider spread and a slope of 0.934, because it overcorrects in some places and undercorrects in others.
 
-### Three other patterns
+### Window length, percentile and season
 
 Longer windows are always better. MAE falls from 2.62 °C at 14 days to 1.81 °C at one year, with no exceptions, so sampling noise beats seasonal detail. Part of the 14-day error is noise in the target itself, so do not read it as the predictors failing at short time scales.
 
@@ -192,7 +196,7 @@ The tails are harder than the middle. MAE by percentile, averaged over predictor
 
 The bias is strongly seasonal. For bilinear at the median it is +1.94 °C in JFM, +0.43 in AMJ, +1.94 in JAS and +1.03 in OND. One constant offset cannot serve all four quarters.
 
-### What the error looks like now
+### Components of the remaining error
 
 | Component | Size | Character |
 |---|---|---|
@@ -229,7 +233,7 @@ The first two now look tractable. The third is the real remaining problem.
 
 ---
 
-## Reproducing this
+## Reproducing the analysis
 
 ```bash
 python3 scripts/run_quantile_mapping.py             # full grid, ~23 min, then cached
