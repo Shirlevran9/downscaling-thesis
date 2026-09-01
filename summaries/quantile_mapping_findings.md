@@ -169,11 +169,11 @@ Two things stand out in Fig. 1. Most points fall below the 1:1 line, so the pred
 
 ![Bias vs elevation](../plots/fig_q09_bias_vs_elevation.png)
 
-**Fig. 2.** *Mean percentile bias against terrain elevation, by predictor.* X axis: elevation (m a.s.l.), grouped into ten bins holding equal numbers of pixels and plotted at the bin centre, so the spacing reflects the domain's skew toward low ground. Y axis: mean bias, predictor minus observation, in °C; the dashed line marks zero. One line per predictor. Shaded band: ±1 standard deviation of the bias within each bin. Data: quarterly windows at the median, ERA5-Land and CMIP6 CESM2-WACCM, 1990–1999, land pixels of 24–38°N 30–38°E.
+**Fig. 2.** *Mean percentile bias against terrain elevation, by predictor.* X axis: elevation (m a.s.l.), grouped into ten bins holding equal numbers of pixels and plotted at the bin centre, so the spacing reflects the domain's skew toward low ground. Y axis: mean bias, predictor minus observation, in °C; the dashed line marks zero. One line per predictor. Shaded band: ±1 standard deviation of the bias within each bin. This is not a single quarter. Every bin pools all 40 quarterly windows of 1990–1999, so each holds about 768 land pixels × 40 windows ≈ 30,700 values. The band therefore mixes two sources of variation, pixel-to-pixel and window-to-window; since the bias is strongly seasonal (see below), a large part of the band is seasonal rather than spatial. Data: ERA5-Land 2 m temperature and CMIP6 CESM2-WACCM TAS, median of each quarterly window, land pixels of 24–38°N 30–38°E.
 
 This is the main result of the study.
 
-| Predictor | Bias at −220 m | Bias at 2,197 m | Spread in top bin |
+| Predictor | Mean bias, lowest bin (−220 m) | Mean bias, highest bin (2,197 m) | Spread in highest bin |
 |---|---|---|---|
 | k-NN, k=4 | +0.02 | +4.66 | 2.68 |
 | k-NN, k=9 | −0.22 | +5.13 | 2.66 |

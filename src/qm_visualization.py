@@ -38,6 +38,7 @@ from .visualization import (
 __all__ = [
     "PREDICTOR_LABELS",
     "SCHEME_LABELS",
+    "SCHEME_ADJECTIVES",
     "plot_quantile_scatter",
     "plot_percentile_panels",
     "plot_bias_map",
@@ -61,12 +62,22 @@ PREDICTOR_LABELS = {
     "trilinear_fixed": "Trilinear (−6.5 K/km)",
 }
 
-#: Human-readable window-scheme names.
+#: Human-readable window-scheme names, for naming a single window length.
 SCHEME_LABELS = {
     "14d": "14 days",
     "month": "1 month",
     "quarter": "1 quarter",
     "year": "1 year",
+}
+
+#: Adjectival form, for titles describing a pool of many windows. "1 quarter
+#: windows" reads as though a single quarter were plotted; "quarterly windows"
+#: does not.
+SCHEME_ADJECTIVES = {
+    "14d": "14-day",
+    "month": "monthly",
+    "quarter": "quarterly",
+    "year": "annual",
 }
 
 _BIAS_CMAP = "RdBu_r"
@@ -682,8 +693,8 @@ def plot_bias_vs_elevation(
     labels.append("Shaded: ±1 SD of bias within each bin")
     ax.legend(handles, labels, fontsize=VC.LEGEND_FONT_SIZE, framealpha=0.8)
     ax.set_title(
-        title or f"Percentile bias by elevation — "
-                 f"{SCHEME_LABELS.get(scheme, scheme)} windows, P{percentile}",
+        title or f"Percentile bias by elevation — P{percentile}, pooled over "
+                 f"all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows",
         fontsize=VC.TITLE_FONT_SIZE,
     )
     fig.tight_layout()
@@ -744,8 +755,8 @@ def plot_bias_by_sea_fraction(
     ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
     ax.legend(fontsize=VC.LEGEND_FONT_SIZE, framealpha=0.8, ncol=2)
     ax.set_title(
-        title or f"Percentile bias by coarse-cell sea fraction — "
-                 f"{SCHEME_LABELS.get(scheme, scheme)} windows, P{percentile}",
+        title or f"Percentile bias by coarse-cell sea fraction — P{percentile}, "
+                 f"pooled over all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows",
         fontsize=VC.TITLE_FONT_SIZE,
     )
     fig.tight_layout()
