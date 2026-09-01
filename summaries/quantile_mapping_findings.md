@@ -169,21 +169,23 @@ Two things stand out in Fig. 1. Most points fall below the 1:1 line, so the pred
 
 ![Bias vs elevation](../plots/fig_q09_bias_vs_elevation.png)
 
-**Fig. 2.** *Mean percentile bias against terrain elevation, by predictor.* X axis: elevation (m a.s.l.), grouped into ten bins holding equal numbers of pixels and plotted at the bin centre, so the spacing reflects the domain's skew toward low ground. Y axis: mean bias, predictor minus observation, in °C; the dashed line marks zero. One line per predictor. Shaded band: ±1 standard deviation of the bias within each bin. This is not a single quarter. Every bin pools all 40 quarterly windows of 1990–1999, so each holds about 768 land pixels × 40 windows ≈ 30,700 values. The band therefore mixes two sources of variation, pixel-to-pixel and window-to-window; since the bias is strongly seasonal (see below), a large part of the band is seasonal rather than spatial. Data: ERA5-Land 2 m temperature and CMIP6 CESM2-WACCM TAS, median of each quarterly window, land pixels of 24–38°N 30–38°E.
+**Fig. 2.** *Mean percentile bias against terrain elevation, by predictor, for one distribution window.* X axis: elevation (m a.s.l.), grouped into ten bins holding equal numbers of pixels and plotted at the bin centre, so the spacing reflects the domain's skew toward low ground. Y axis: mean bias, predictor minus observation, in °C, averaged over the pixels of that bin; the dashed line marks zero. One line per predictor. Shaded band: ±1 standard deviation of the bias across the pixels in the bin, so it is purely spatial spread. The window is 1999-Q2, the same one as Fig. 1, and each bin holds about 768 land pixels. Bin edges are set from the whole decade, so they are identical in every window and results stay comparable across windows. Data: ERA5-Land 2 m temperature and CMIP6 CESM2-WACCM TAS, median of April–June 1999, land pixels of 24–38°N 30–38°E.
 
 This is the main result of the study.
 
-| Predictor | Mean bias, lowest bin (−220 m) | Mean bias, highest bin (2,197 m) | Spread in highest bin |
-|---|---|---|---|
-| k-NN, k=4 | +0.02 | +4.66 | 2.68 |
-| k-NN, k=9 | −0.22 | +5.13 | 2.66 |
-| Bilinear | +0.10 | +4.48 | 2.59 |
-| Trilinear (fitted Γ) | +0.37 | **+2.48** | **2.34** |
-| Trilinear (−6.5 °C/km) | +0.67 | **+0.27** | 2.89 |
+| Predictor | Mean bias, lowest bin (−220 m) | Mean bias, highest bin (2,197 m) | Change across the range | Spatial SD, highest bin |
+|---|---|---|---|---|
+| k-NN, k=4 | −1.53 | +1.85 | **+3.38** | 1.87 |
+| k-NN, k=9 | −1.71 | +2.21 | **+3.92** | 1.71 |
+| Bilinear | −1.47 | +1.72 | **+3.19** | 1.78 |
+| Trilinear (fitted Γ) | −1.19 | −0.37 | **+0.82** | **1.63** |
+| Trilinear (−6.5 °C/km) | −0.90 | −2.49 | **−1.59** | 2.52 |
 
-Below about 700 m all five predictors agree and are nearly unbiased (Fig. 2). Above that the three without a height term climb steeply, to between +4.5 and +5.1 °C. This is not a small corner of the domain, since 18% of our land pixels sit above 1,000 m and the median land pixel is at 497 m. For those three predictors the per-pixel bias correlates with elevation at r ≈ 0.75 to 0.82. Terrain is not one error among several, it is the error.
+The column that matters is the change across the elevation range, because it isolates the terrain effect from the season's overall offset. April–June is the least biased quarter of the year, which is why every curve sits below zero at low ground; the slope is the point, not the level.
 
-The fitted Γ halves the high-elevation bias. The fixed −6.5 °C/km flattens the average almost completely, but look at the last column: its spread in the top bin is the worst of all five. It gets the average right by scattering individual pixels further from the truth.
+The three predictors without a height term swing by +3.2 to +3.9 °C from the lowest elevation bin to the highest. That is the terrain signal, and it is large. This is not a small corner of the domain, since 18% of our land pixels sit above 1,000 m and the median land pixel is at 497 m. Pooled over all 40 quarterly windows the same predictors reach +4.5 to +5.1 °C in the top bin, and their per-pixel bias correlates with elevation at r ≈ 0.75 to 0.82. Terrain is not one error among several, it is the error.
+
+Adding the fitted Γ cuts the swing from +3.19 to +0.82 °C and gives the smallest spatial spread of the five. The fixed −6.5 °C/km overshoots: it drives the swing negative, to −1.59 °C, and its spread in the top bin is the worst of all five at 2.52 °C. It over-corrects the high ground rather than levelling it.
 
 ### Spatial distribution of the bias
 

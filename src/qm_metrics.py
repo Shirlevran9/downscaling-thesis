@@ -287,65 +287,109 @@ def _binned_bias(
     by: str,
     n_bins: int,
     quantile_bins: bool,
+    per_window: bool = False,
 ) -> pd.DataFrame:
-    """Shared helper: mean bias inside bins of a static per-pixel column."""
+    """Mean and spread of the bias inside bins of a static per-pixel column.
+
+    Bin edges are always computed from every row of *df*, because *by* is a
+    static property of a pixel (elevation, sub-grid terrain, sea fraction) and
+    so takes the same set of values in every window.  Fixing the edges this way
+    keeps the bins identical across windows, which is what makes per-window
+    results comparable with each other.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Wide percentile table for one (predictor, scheme).
+    q : int
+        Percentile.
+    by : str
+        Static per-pixel column to bin on.
+    n_bins : int
+        Number of bins.
+    quantile_bins : bool
+        Equal-count bins when True, equal-width when False.
+    per_window : bool
+        When False, every window is pooled into one set of bins, so
+        ``bias_sd`` mixes pixel-to-pixel with window-to-window variation.
+        When True, each window is binned separately, so ``bias_sd`` is the
+        spatial spread across the pixels of that window alone.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``bin_low``, ``bin_high``, ``bin_mid``, ``mean_bias``,
+        ``bias_sd``, ``mae``, ``n``, plus ``window_label``.  Pooled rows carry
+        the sentinel label ``"ALL"``.
+    """
+    cols = ["window_label", "bin_low", "bin_high", "bin_mid",
+            "mean_bias", "bias_sd", "mae", "n"]
     if by not in df.columns:
-        return pd.DataFrame(
-            columns=["bin_mid", "bin_low", "bin_high", "mean_bias",
-                     "bias_sd", "mae", "n"]
-        )
+        return pd.DataFrame(columns=cols)
 
     vals = df[by].to_numpy(dtype=float)
-    diff = df[f"x_p{q}"].to_numpy() - df[f"y_p{q}"].to_numpy()
+    diff = df[f"x_p{q}"].to_numpy(dtype=float) - df[f"y_p{q}"].to_numpy(dtype=float)
     good = np.isfinite(vals) & np.isfinite(diff)
-    vals, diff = vals[good], diff[good]
-    if len(vals) == 0:
-        return pd.DataFrame(
-            columns=["bin_mid", "bin_low", "bin_high", "mean_bias",
-                     "bias_sd", "mae", "n"]
-        )
+    if not good.any():
+        return pd.DataFrame(columns=cols)
 
+    # --- bin edges, from all rows ------------------------------------------
+    v_all = vals[good]
     if quantile_bins:
-        edges = np.unique(np.quantile(vals, np.linspace(0, 1, n_bins + 1)))
+        edges = np.unique(np.quantile(v_all, np.linspace(0, 1, n_bins + 1)))
     else:
-        edges = np.linspace(vals.min(), vals.max(), n_bins + 1)
+        edges = np.linspace(v_all.min(), v_all.max(), n_bins + 1)
     if len(edges) < 2:
-        edges = np.array([vals.min(), vals.min() + 1.0])
+        edges = np.array([v_all.min(), v_all.min() + 1.0])
 
     which = np.clip(np.digitize(vals, edges[1:-1]), 0, len(edges) - 2)
 
-    rows = []
-    for b in range(len(edges) - 1):
-        sel = which == b
-        if not sel.any():
-            continue
-        d = diff[sel]
-        rows.append(
-            dict(
-                bin_low=float(edges[b]),
-                bin_high=float(edges[b + 1]),
-                bin_mid=float(0.5 * (edges[b] + edges[b + 1])),
-                mean_bias=float(d.mean()),
-                bias_sd=float(d.std(ddof=1)) if len(d) > 1 else np.nan,
-                mae=float(np.abs(d).mean()),
-                n=int(len(d)),
-            )
-        )
-    return pd.DataFrame(rows)
+    work = pd.DataFrame({"bin": which[good], "bias": diff[good]})
+    keys = ["bin"]
+    if per_window:
+        work["window_id"] = df["window_id"].to_numpy()[good]
+        work["window_label"] = df["window_label"].astype(str).to_numpy()[good]
+        keys = ["window_id", "window_label", "bin"]
+
+    grouped = work.groupby(keys, observed=True)["bias"]
+    out = grouped.agg(mean_bias="mean", bias_sd="std", n="size").reset_index()
+    out["mae"] = grouped.apply(lambda t: t.abs().mean()).to_numpy()
+
+    out["bin_low"] = edges[out["bin"].to_numpy()]
+    out["bin_high"] = edges[out["bin"].to_numpy() + 1]
+    out["bin_mid"] = 0.5 * (out["bin_low"] + out["bin_high"])
+    if not per_window:
+        out["window_label"] = "ALL"
+    out = out.drop(columns=["bin"] + (["window_id"] if per_window else []))
+    return out[cols]
 
 
-def elevation_binned_bias(df: pd.DataFrame, q: int, n_bins: int = 10) -> pd.DataFrame:
+def elevation_binned_bias(
+    df: pd.DataFrame,
+    q: int,
+    n_bins: int = 10,
+    per_window: bool = False,
+) -> pd.DataFrame:
     """Mean bias inside equal-count elevation bins.
 
     Equal-count (quantile) bins are used because the domain's elevation
-    distribution is strongly skewed toward low ground.
+    distribution is strongly skewed toward low ground.  Set *per_window* to
+    get one set of bins per window, whose ``bias_sd`` is then purely the
+    spatial spread across that window's pixels.
     """
-    return _binned_bias(df, q, "elevation", n_bins, quantile_bins=True)
+    return _binned_bias(df, q, "elevation", n_bins,
+                        quantile_bins=True, per_window=per_window)
 
 
-def sea_fraction_binned_bias(df: pd.DataFrame, q: int, n_bins: int = 5) -> pd.DataFrame:
+def sea_fraction_binned_bias(
+    df: pd.DataFrame,
+    q: int,
+    n_bins: int = 5,
+    per_window: bool = False,
+) -> pd.DataFrame:
     """Mean bias inside equal-width sea-fraction bins of the parent coarse cell."""
-    return _binned_bias(df, q, "sea_fraction", n_bins, quantile_bins=False)
+    return _binned_bias(df, q, "sea_fraction", n_bins,
+                        quantile_bins=False, per_window=per_window)
 
 
 # ---------------------------------------------------------------------------
@@ -411,14 +455,20 @@ def build_all_aggregates(
                 window_parts.append(
                     per_window_bias(df, q).assign(**tag, percentile=q)
                 )
-                elev_parts.append(
-                    elevation_binned_bias(df, q, n_elev_bins)
-                    .assign(**tag, percentile=q)
-                )
-                sea_parts.append(
-                    sea_fraction_binned_bias(df, q, n_sea_bins)
-                    .assign(**tag, percentile=q)
-                )
+                # Both the pooled view (window_label "ALL") and one set of
+                # bins per window. The per-window rows are what a single-window
+                # figure needs, because their bias_sd is the spatial spread
+                # across that window's pixels rather than a mix of spatial and
+                # seasonal variation.
+                for per_window in (False, True):
+                    elev_parts.append(
+                        elevation_binned_bias(df, q, n_elev_bins, per_window)
+                        .assign(**tag, percentile=q)
+                    )
+                    sea_parts.append(
+                        sea_fraction_binned_bias(df, q, n_sea_bins, per_window)
+                        .assign(**tag, percentile=q)
+                    )
             del df
 
     out = {

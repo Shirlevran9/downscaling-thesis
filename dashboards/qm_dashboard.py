@@ -556,8 +556,15 @@ if view == "Diagnostics":
 
     st.subheader("Bias against elevation")
     st.caption("Equal-count elevation bins. Band is ±1 SD within the bin.")
+    diag_window = "ALL" if sel_window == "All windows" else sel_window
+    st.caption(
+        "Pooled over every window; the band mixes spatial with seasonal variation."
+        if diag_window == "ALL" else
+        f"Window {diag_window} only; the band is the spatial spread across pixels."
+    )
     part = elev[
         (elev["scheme"] == sel_scheme) & (elev["percentile"] == sel_q)
+        & (elev["window_label"].astype(str) == diag_window)
         & (elev["predictor"].isin(sel_predictors))
     ].assign(predictor=lambda d: d["predictor"].map(label_of))
     if part.empty:
@@ -575,6 +582,7 @@ if view == "Diagnostics":
     st.subheader("Bias against coarse-cell sea fraction")
     part = sea[
         (sea["scheme"] == sel_scheme) & (sea["percentile"] == sel_q)
+        & (sea["window_label"].astype(str) == diag_window)
         & (sea["predictor"].isin(sel_predictors))
     ].assign(predictor=lambda d: d["predictor"].map(label_of))
     if part.empty:

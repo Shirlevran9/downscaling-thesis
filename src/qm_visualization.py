@@ -635,6 +635,7 @@ def plot_bias_vs_elevation(
     elev_df: pd.DataFrame,
     scheme: str,
     percentile: int,
+    window_label: str = "ALL",
     predictors: list[str] | None = None,
     title: str = "",
     save_path: str | Path | None = None,
@@ -660,7 +661,9 @@ def plot_bias_vs_elevation(
     plt.Figure
     """
     df = elev_df[
-        (elev_df["scheme"] == scheme) & (elev_df["percentile"] == percentile)
+        (elev_df["scheme"] == scheme)
+        & (elev_df["percentile"] == percentile)
+        & (elev_df["window_label"].astype(str) == str(window_label))
     ]
     pred_order = predictors or [
         p for p in PREDICTOR_LABELS if p in set(df["predictor"])
@@ -690,11 +693,19 @@ def plot_bias_vs_elevation(
     handles, labels = ax.get_legend_handles_labels()
     handles.append(plt.Rectangle((0, 0), 1, 1, fc="0.5",
                                  alpha=min(VC.CI_ALPHA * 1.8, 0.7)))
-    labels.append("Shaded: ±1 SD of bias within each bin")
-    ax.legend(handles, labels, fontsize=VC.LEGEND_FONT_SIZE, framealpha=0.8)
+    pooled = str(window_label) == "ALL"
+    labels.append(
+        "Shaded: ±1 SD of bias across pixels in each bin" if not pooled
+        else "Shaded: ±1 SD of bias within each bin (all windows pooled)"
+    )
+    # Upper left: the bias rises with elevation, so the top-left corner is the
+    # one region of these axes that is reliably empty.
+    ax.legend(handles, labels, fontsize=VC.LEGEND_FONT_SIZE, framealpha=0.85,
+              loc="upper left")
+    scope = (f"pooled over all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows"
+             if pooled else f"{SCHEME_ADJECTIVES.get(scheme, scheme)} window {window_label}")
     ax.set_title(
-        title or f"Percentile bias by elevation — P{percentile}, pooled over "
-                 f"all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows",
+        title or f"Percentile bias by elevation — P{percentile}, {scope}",
         fontsize=VC.TITLE_FONT_SIZE,
     )
     fig.tight_layout()
@@ -705,6 +716,7 @@ def plot_bias_by_sea_fraction(
     sea_df: pd.DataFrame,
     scheme: str,
     percentile: int,
+    window_label: str = "ALL",
     predictors: list[str] | None = None,
     title: str = "",
     save_path: str | Path | None = None,
@@ -726,7 +738,9 @@ def plot_bias_by_sea_fraction(
     plt.Figure
     """
     df = sea_df[
-        (sea_df["scheme"] == scheme) & (sea_df["percentile"] == percentile)
+        (sea_df["scheme"] == scheme)
+        & (sea_df["percentile"] == percentile)
+        & (sea_df["window_label"].astype(str) == str(window_label))
     ]
     pred_order = predictors or [
         p for p in PREDICTOR_LABELS if p in set(df["predictor"])
@@ -755,8 +769,12 @@ def plot_bias_by_sea_fraction(
     ax.tick_params(labelsize=VC.TICK_FONT_SIZE)
     ax.legend(fontsize=VC.LEGEND_FONT_SIZE, framealpha=0.8, ncol=2)
     ax.set_title(
-        title or f"Percentile bias by coarse-cell sea fraction — P{percentile}, "
-                 f"pooled over all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows",
+        title or (
+            f"Percentile bias by coarse-cell sea fraction — P{percentile}, "
+            + (f"pooled over all {SCHEME_ADJECTIVES.get(scheme, scheme)} windows"
+               if str(window_label) == "ALL"
+               else f"{SCHEME_ADJECTIVES.get(scheme, scheme)} window {window_label}")
+        ),
         fontsize=VC.TITLE_FONT_SIZE,
     )
     fig.tight_layout()
