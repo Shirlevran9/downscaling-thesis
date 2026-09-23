@@ -20,7 +20,10 @@ refrences/study-ref/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+# Source documents from supervisors stay out; generated summaries are
+# deliverables and belong in the repository.
 *.docx
+!summaries/*.docx
 comments-outline17042026.txt
 Shell\ commands.rtf
 # Generated figures are local-only, except the quantile-mapping set, which is
