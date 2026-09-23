@@ -37,17 +37,47 @@ import xarray as xr
 
 __all__ = [
     "SCHEMES",
+    "SEASON_SCHEME",
+    "WINDOW_SCHEMES",
+    "SEASONS",
     "PERCENTILES",
     "BLOCK_DAYS",
     "make_windows",
+    "season_year",
     "window_percentiles",
     "build_percentile_table",
 ]
 
 log = logging.getLogger(__name__)
 
-#: Window schemes in increasing length order.
+#: Window schemes of the original predictor-comparison grid, in increasing
+#: length order.  Left unchanged so ``scripts/run_quantile_mapping.py`` and the
+#: dashboard keep building exactly the tables they built before.
 SCHEMES = ["14d", "month", "quarter", "year"]
+
+#: Meteorological-season scheme, used by the fitted quantile-mapping baseline.
+#: Deliberately **not** a member of :data:`SCHEMES`; see above.
+SEASON_SCHEME = "season"
+
+#: Every scheme :func:`make_windows` accepts.
+WINDOW_SCHEMES = SCHEMES + [SEASON_SCHEME]
+
+#: Meteorological seasons, in the order they occur within a season-year.
+SEASONS = ("DJF", "MAM", "JJA", "SON")
+
+#: Month number -> meteorological season.
+_SEASON_OF_MONTH = {
+    12: "DJF", 1: "DJF", 2: "DJF",
+    3: "MAM", 4: "MAM", 5: "MAM",
+    6: "JJA", 7: "JJA", 8: "JJA",
+    9: "SON", 10: "SON", 11: "SON",
+}
+
+#: The three calendar months each season must contain to count as complete.
+_MONTHS_OF_SEASON = {
+    "DJF": (12, 1, 2), "MAM": (3, 4, 5),
+    "JJA": (6, 7, 8), "SON": (9, 10, 11),
+}
 
 #: Percentiles of interest.
 PERCENTILES = (5, 25, 50, 75, 90)
@@ -77,6 +107,34 @@ def _block_index(idx: pd.DatetimeIndex) -> np.ndarray:
     return np.minimum(rank.to_numpy() // BLOCK_DAYS, 25)
 
 
+def season_year(
+    idx: pd.DatetimeIndex,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Map each date to its meteorological season and season-year.
+
+    December belongs to the **following** year's winter, so 1 December 1990,
+    15 January 1991 and 20 February 1991 all carry season ``"DJF"`` and
+    season-year ``1991``.  Grouping this way means holding out one season-year
+    also holds out its December, so leave-one-season-year-out cross-validation
+    cannot leak across the calendar-year boundary.
+
+    Parameters
+    ----------
+    idx : pd.DatetimeIndex
+        Dates in time order.
+
+    Returns
+    -------
+    (season, syear) : tuple of np.ndarray
+        ``season`` holds ``"DJF"``/``"MAM"``/``"JJA"``/``"SON"`` strings and
+        ``syear`` the int16 season-year, both of length ``len(idx)``.
+    """
+    month = idx.month.to_numpy()
+    season = np.array([_SEASON_OF_MONTH[m] for m in month])
+    syear = np.where(month == 12, idx.year.to_numpy() + 1, idx.year.to_numpy())
+    return season, syear.astype(np.int16)
+
+
 def make_windows(
     dates: list[str] | pd.DatetimeIndex,
     scheme: str,
@@ -88,8 +146,12 @@ def make_windows(
     dates : list of str or pd.DatetimeIndex
         ``"YYYY-MM-DD"`` strings (or a DatetimeIndex) in time order, one entry
         per time step of the data.
-    scheme : {"14d", "month", "quarter", "year"}
-        Window length.
+    scheme : {"14d", "month", "quarter", "year", "season"}
+        Window length.  ``"quarter"`` means the **calendar** quarters
+        JFM/AMJ/JAS/OND; ``"season"`` means the **meteorological** seasons
+        DJF/MAM/JJA/SON grouped by season-year.  The two are different
+        groupings and their labels are deliberately distinguishable
+        (``"1999-Q2"`` versus ``"1999-MAM"``).
 
     Returns
     -------
@@ -97,15 +159,28 @@ def make_windows(
         ``windows_df`` has one row per window with columns ``window_id``
         (0-based, in chronological order), ``label``, ``start``, ``end`` and
         ``n_days``.  ``group_codes`` is an integer array of length
-        ``len(dates)`` giving the ``window_id`` of each time step.
+        ``len(dates)`` giving the ``window_id`` of each time step, or ``-1``
+        for a time step that belongs to no window.
+
+    Notes
+    -----
+    Only the ``"season"`` scheme can emit ``-1``.  A meteorological season is
+    kept only when all three of its calendar months are present, so a record
+    starting on 1 January 1990 drops January-February 1990 (no preceding
+    December) and a record ending on 31 December 1999 drops that December (no
+    following January).  Over 1990-1999 that leaves **9** DJF windows against
+    10 for each other season.  The alternative — keeping a 31-day stub as a
+    window — would produce a P5 and P90 estimated from one or two days.
 
     Raises
     ------
     ValueError
         If *scheme* is unknown, or if the date axis is not sorted.
     """
-    if scheme not in SCHEMES:
-        raise ValueError(f"Unknown scheme {scheme!r}; expected one of {SCHEMES}.")
+    if scheme not in WINDOW_SCHEMES:
+        raise ValueError(
+            f"Unknown scheme {scheme!r}; expected one of {WINDOW_SCHEMES}."
+        )
 
     idx = pd.DatetimeIndex(pd.to_datetime(pd.Index(dates)))
     if not idx.is_monotonic_increasing:
@@ -113,7 +188,29 @@ def make_windows(
 
     year = idx.year.to_numpy()
 
-    if scheme == "14d":
+    if scheme == SEASON_SCHEME:
+        season, syear = season_year(idx)
+        labels = np.array([f"{y}-{s}" for y, s in zip(syear, season)])
+
+        # Keep a season only when all three of its months are present.
+        drop = np.zeros(len(idx), dtype=bool)
+        month = idx.month.to_numpy()
+        for lab in np.unique(labels):
+            member = labels == lab
+            wanted = set(_MONTHS_OF_SEASON[lab.split("-", 1)[1]])
+            if set(month[member].tolist()) != wanted:
+                drop |= member
+                log.info(
+                    "Dropping incomplete season %s (%d days, months %s).",
+                    lab, int(member.sum()), sorted(set(month[member].tolist())),
+                )
+        labels = np.where(drop, "", labels)
+
+        # Guard the convention: DJF must only ever hold Dec, Jan, Feb.
+        is_djf = np.char.endswith(labels.astype(str), "DJF")
+        assert set(month[is_djf].tolist()) <= {12, 1, 2}, "DJF holds a wrong month"
+
+    elif scheme == "14d":
         block = _block_index(idx)
         labels = np.array(
             [f"{y}-B{b + 1:02d}" for y, b in zip(year, block)]
@@ -126,11 +223,14 @@ def make_windows(
         labels = np.array([str(y) for y in year])
 
     # Labels are already chronological because the date axis is sorted, so
-    # first-appearance order gives the window ids.
+    # first-appearance order gives the window ids.  The empty label marks a
+    # time step that belongs to no window (only the "season" scheme emits it)
+    # and is mapped to -1 rather than being given an id.
     uniq, first_pos = np.unique(labels, return_index=True)
     order = np.argsort(first_pos)
-    ordered_labels = uniq[order]
+    ordered_labels = [lab for lab in uniq[order] if lab != ""]
     label_to_id = {lab: i for i, lab in enumerate(ordered_labels)}
+    label_to_id[""] = -1
 
     group_codes = np.array([label_to_id[lab] for lab in labels], dtype=np.int32)
 

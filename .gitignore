@@ -28,3 +28,15 @@ Shell\ commands.rtf
 plots/*
 !plots/fig_q*.png
 history/
+
+# Reference articles (PDFs are publisher copies, kept locally only)
+articles/
+
+# The global gitignore excludes .claude/, but CLAUDE.md is project
+# documentation and belongs in the repository. A parent directory cannot be
+# un-ignored by a negation alone, so re-include the directory, exclude its
+# contents, then re-include the one file. settings.local.json stays out: it is
+# per-machine.
+!.claude/
+.claude/*
+!.claude/CLAUDE.md
