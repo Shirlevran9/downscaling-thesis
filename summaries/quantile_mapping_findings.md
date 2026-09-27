@@ -8,9 +8,9 @@
 
 CMIP6 is a free-running model, so its 3 May 1994 is *a* plausible 3 May, not *the* 3 May. A regression that pairs each CMIP6 day with the same observed day therefore has no valid pairing to fit (Nirel 2026). The alternative is to compare distributions rather than days, which is the Model Output Statistics route and specifically quantile mapping (Déqué 2007).
 
-Earlier work measured how far five coarse-to-fine constructions sat from the observations across four window lengths, but fitted no correction, so nothing could be scored out of sample. This document reports the fitted baseline: one modelled variable, one distribution window, six transforms, every number from a held-out year.
+Earlier work measured how far five coarse-to-fine constructions sat from the observations across four window lengths, but fitted no correction, so nothing could be scored out of sample. This document reports the fitted baseline: one modelled variable, one distribution window, six transfer functions, every number from a held-out year.
 
-The question is how much of the modelled variable's error a quantile-mapping transform removes, and whether the choice of transform matters.
+The question is how much of the modelled variable's error a quantile-mapping transfer function removes, and whether the choice of transfer function matters.
 
 ---
 
@@ -46,9 +46,9 @@ Percentiles are estimated with `numpy.percentile` default linear interpolation b
 
 ### Models
 
-A transform `h` maps a modelled value to a corrected value so the corrected distribution matches the observed one. The general form is the probability integral transform, `ŷ = F_obs⁻¹(F_mod(x))`, with both distribution functions estimated from the calibration sample.
+A transfer function `h` maps a modelled value to a corrected value so the corrected distribution matches the observed one. The general form is the probability integral transfer function, `ŷ = F_obs⁻¹(F_mod(x))`, with both distribution functions estimated from the calibration sample.
 
-Each transform is fitted on the empirical quantile–quantile curve of the training days. The distribution-derived and parametric transforms use every training day; the three non-parametric transforms use a 99-node percentile table.[^nodes]
+Each transfer function is fitted on the empirical quantile–quantile curve of the training days. The distribution-derived and parametric transfer functions use every training day; the three non-parametric transfer functions use a 99-node percentile table.[^nodes]
 
 **Normal** — distribution derived. Both sides are assumed normal, which gives `h` in closed form as `μ_y + (σ_y/σ_x)(x − μ_x)`, with the moments estimated from the training days.
 
@@ -66,7 +66,7 @@ Each transform is fitted on the empirical quantile–quantile curve of the train
 
 #### Unit of fitting
 
-One transform is fitted per **(land pixel, season)** on the pooled daily values of the training years, 720 to 828 days. All five percentiles are read off that single transform, so percentile is an evaluation dimension and not a model dimension. A single increasing `h` keeps the corrected percentiles in order, and a per-percentile model would have only ten training points.
+One transfer function is fitted per **(land pixel, season)** on the q–q curve of the pooled training years, 720 to 828 sorted pairs. All five percentiles are read off that single transfer function, so percentile is an evaluation dimension and not a model dimension. A single increasing `h` keeps the corrected percentiles in order, and a per-percentile model would have only ten training points.
 
 The correction is applied to the daily modelled values of the held-out season, and percentiles are taken of the corrected set. Applying `h` to the percentile directly gives the same answer only when `h` is affine or when quantiles are raw order statistics; under the interpolating quantile estimator used here the two routes differ by up to 0.39 °C for QUANT.
 
@@ -74,7 +74,7 @@ Values outside the training range receive the constant correction of Boé et al.
 
 #### Cross-validation
 
-Leave-one-season-year-out. For each season one season-year is held out, the transform is fitted on the remaining years, and the corrected percentiles of the held-out year are compared with the observed ones.
+Leave-one-season-year-out. For each season one season-year is held out, the transfer function is fitted on the remaining years, and the corrected percentiles of the held-out year are compared with the observed ones.
 
 Grouping by season-year means holding out `1991-DJF` also removes December 1990, so no fold crosses the calendar-year boundary.
 
@@ -184,9 +184,9 @@ Averaging the 20 (season, percentile) cells without weighting gives one number p
 
 **Table 3.** Cross-validated skill, averaged over four seasons and five percentiles. "Excess over floor" is MAE minus the climatology floor of 0.890 °C. The last column is that excess as a share of the uncorrected modelled variable's removable error.
 
-The uncorrected modelled variable is 1.395 °C too warm. Every transform removes essentially all of that systematic component, leaving residual biases of −0.011 to +0.028 °C. Spatial correlation rises from 0.846 to 0.925–0.928.
+The uncorrected modelled variable is 1.395 °C too warm. Every transfer function removes essentially all of that systematic component, leaving residual biases of −0.011 to +0.028 °C. Spatial correlation rises from 0.846 to 0.925–0.928.
 
-MAE falls from 2.132 to 1.371 °C, a 36 % reduction in total error and 61 % of the error that was removable at all. The six transforms span 1.371 to 1.390 °C, a range of 0.019 °C, against a 0.761 °C gap between the best of them and no correction.
+MAE falls from 2.132 to 1.371 °C, a 36 % reduction in total error and 61 % of the error that was removable at all. The six transfer functions span 1.371 to 1.390 °C, a range of 0.019 °C, against a 0.761 °C gap between the best of them and no correction.
 
 ### Seasonal variation
 
@@ -237,13 +237,13 @@ MAE and bias disagree in this column. Linear has the lowest MAE with a +0.659 °
 
 The uncorrected bias is spatially coherent and largest over high ground: the Turkish highlands on the northern edge, the Levantine ridge, and the mountains flanking the Red Sea. These are the areas where the coarse grid undersamples cold terrain. After correction the residual is smaller and spatially patchier, and does not reorganise into a new systematic pattern.
 
-### Fitted transforms
+### Fitted transfer functions
 
 ![Transform curves](../plots/fig_q13_transform_curves.png)
 
-**Fig. 5.** *The six fitted transforms at one pixel, SON, holding out 1995.* One panel per method. Grey circles are the 99 training q–q nodes, pairing sorted modelled values against sorted observed values; the dashed line is 1:1 and the coloured line is that method's fitted `h`. Each panel carries its own modelled-value axis, and is annotated with the root-mean-square departure of `h` from the nodes. The pixel shown, 38.0°N 35.0°E, has the largest departure from a straight line of any land pixel in autumn, 1.22 °C against a median of 0.45 °C across the 7,683 land pixels, so the methods are distinguishable. At the median pixel all six curves lie almost on top of one another. Data: bilinear CMIP6 modelled variable against ERA5-Land, SON 1990–1999 excluding 1995.
+**Fig. 5.** *The six fitted transfer functions at one pixel, SON, holding out 1995.* One panel per method. Grey circles are the 99 training q–q nodes, pairing sorted modelled values against sorted observed values; the dashed line is 1:1 and the coloured line is that method's fitted `h`. Each panel carries its own modelled-value axis, and is annotated with the root-mean-square departure of `h` from the nodes. The pixel shown, 38.0°N 35.0°E, has the largest departure from a straight line of any land pixel in autumn, 1.22 °C against a median of 0.45 °C across the 7,683 land pixels, so the methods are distinguishable. At the median pixel all six curves lie almost on top of one another. Data: bilinear CMIP6 modelled variable against ERA5-Land, SON 1990–1999 excluding 1995.
 
-The q–q relation at this pixel has a pronounced S-bend. Normal and Linear, both straight lines, cut across it and leave an RMS departure of 1.22 °C. The four flexible transforms follow it and leave 0.51 to 0.75 °C, so they fit the training curve about twice as closely.
+The q–q relation at this pixel has a pronounced S-bend. Normal and Linear, both straight lines, cut across it and leave an RMS departure of 1.22 °C. The four flexible transfer functions follow it and leave 0.51 to 0.75 °C, so they fit the training curve about twice as closely.
 
 That closer fit does not carry to the held-out years. Tables 2 to 4 show that the more complex and the more smoothed transfer functions do not necessarily have lower MAE. The pixel in Fig. 5 was selected as the most curved of the 7,683 land pixels; the median departure from a straight line is 0.45 °C and 76 % of pixels fall below 0.60 °C, so at most pixels there is little curvature for a flexible function to capture.
 
@@ -301,13 +301,13 @@ The practical consequence is that the hyper-parameter grids can be narrowed or d
 | SSPLIN | 4.16 % | 19.54 % |
 | Polynomial | 7.38 % | 19.54 % |
 
-**Table 8.** Diagnostics over all 299,637 fits per method. "Non-monotone" is the share of fits whose transform decreased somewhere in its fitted range, requiring the corrected percentiles to be forced back into order. "Extrapolated" is the share where at least one held-out percentile fell outside the training range; it is identical across methods because the same modelled percentiles are evaluated. Normal, Linear and Polynomial were fitted on 720–828 training days and the three non-parametric methods on 99 nodes, per the split described in Methods.
+**Table 8.** Diagnostics over all 299,637 fits per method. "Non-monotone" is the share of fits whose transfer function decreased somewhere in its fitted range, requiring the corrected percentiles to be forced back into order. "Extrapolated" is the share where at least one held-out percentile fell outside the training range; it is identical across methods because the same modelled percentiles are evaluated. Normal, Linear and Polynomial were fitted on all 720–828 sorted q–q pairs and the three non-parametric methods on the 99-node reduction of the same curve, per the split described in Methods.
 
 Normal, Linear, QUANT and RQUANT are increasing by construction. The polynomial requires the monotonicity repair in 7.38 % of fits and SSPLIN in 4.16 %.
 
-Normal, Linear and Polynomial were fitted on 720 to 828 training days and the three non-parametric methods on 99 nodes, following the split described in Methods.
+Normal, Linear and Polynomial were fitted on all 720 to 828 sorted q–q pairs and the three non-parametric methods on the 99-node reduction of the same curve, following the split described in Methods.
 
-In 19.54 % of fits at least one held-out percentile falls outside the training range, so the constant-offset extrapolation rule is applied rather than the fitted transform. The figure is identical across methods because the same modelled percentiles are evaluated in every case.
+In 19.54 % of fits at least one held-out percentile falls outside the training range, so the constant-offset extrapolation rule is applied rather than the fitted transfer function. The figure is identical across methods because the same modelled percentiles are evaluated in every case.
 
 ### Distribution shape
 
@@ -332,11 +332,11 @@ These magnitudes are consistent with Perron and Sura (2013), who report non-Gaus
 
 ## Discussion
 
-Applying a correction reduces MAE by 36 % and removes 61 % of the removable error, while the choice among the six transforms changes MAE by at most 0.019 °C. The best method varies by percentile with margins of 0.001 to 0.018 °C, within the noise of the comparison.
+Applying a correction reduces MAE by 36 % and removes 61 % of the removable error, while the choice among the six transfer functions changes MAE by at most 0.019 °C. The best method varies by percentile with margins of 0.001 to 0.018 °C, within the noise of the comparison.
 
 The two-parameter linear fit is therefore sufficient for this baseline. It matches a degree-5 polynomial, a smoothing spline and a 99-node empirical lookup, is increasing by construction, has no hyper-parameter, and is the cheapest to fit.
 
-Two factors limit how much the transforms can differ. First, 65 % of the residual error is irreducible: the climatology floor is 0.890 °C against the best method's 1.371 °C, because the model simulates a plausible year rather than the observed one. The methods compete over 0.481 °C, not 1.371 °C. The seasonal contrast makes the same point — JJA's 0.745 °C looks far better than SON's 1.661 °C, but relative to their floors they are 1.41 and 1.70 times, so summer is more repeatable rather than easier to correct.
+Two factors limit how much the transfer functions can differ. First, 65 % of the residual error is irreducible: the climatology floor is 0.890 °C against the best method's 1.371 °C, because the model simulates a plausible year rather than the observed one. The methods compete over 0.481 °C, not 1.371 °C. The seasonal contrast makes the same point — JJA's 0.745 °C looks far better than SON's 1.661 °C, but relative to their floors they are 1.41 and 1.70 times, so summer is more repeatable rather than easier to correct.
 
 Second, the calibration sample is short. Where the hyper-parameter selection carries a real signal it points towards smoothing: all four tunable methods pick the smoothest end of their grid in SON, monotonically (Table 8), and the two empirical lookups finish behind the linear fit rather than ahead of it. Gudmundsson et al. (2012), whose non-parametric methods ranked first on 41 years of station precipitation, state that overfitting "may be an issue if the nonparametric transformations are calibrated using small data samples". Lehner et al. (2023) report that "non-parametric QM depends more on the calibration period than parametric QM". Reiter et al. (2018) found the more complex methods correcting independent-data extremes to unrealistic values once the calibration subsample became small. With ten years the flexible methods have little signal left to fit.
 
@@ -344,13 +344,13 @@ The out-of-sample design is necessary for this conclusion. Quantile mapping repr
 
 The autumn cold tail is where the correction adds least. At SON P5 the floor is 1.740 °C, the best method removes 31 % of the removable error, and QUANT performs worse than no correction. This is also the season with the largest departure from normality, skewness −0.423, and the only cell where the methods separate materially.
 
-### A climatology benchmark beats every method
+### Comparison against a climatology benchmark
 
-Predicting the observed percentile of a specific held-out year without using the model at all — the mean of the other nine years' observed percentile at that pixel — gives an MAE of **1.030 °C**, against 1.371 °C for Polynomial, the best single transform averaged over all twenty cells. Climatology wins in every season and at every percentile: 0.806 °C against 1.519 at SON P50, and 0.532 against 0.656 at JJA P25.
+A prediction that ignores the model entirely — the average of the other nine years' observed percentile at that pixel — has a mean MAE of **1.030 °C**. The best transfer function has 1.371 °C. Climatology is lower in all twenty season–percentile cells (Table 10). Both beat leaving the modelled variable uncorrected.
 
-The reason is visible in the year-to-year correlation between the modelled and the observed seasonal percentile. Averaged over land pixels it is 0.12 at P5, 0.05 at P25, 0.10 at P50, 0.14 at P75 and 0.08 at P90. The model carries almost no information about which particular year was warm or cold, which is expected of a free-running simulation: it is not initialised from observations and assimilates none, so its internal variability is its own.
+The reason is the year-to-year correlation between the modelled and the observed seasonal percentile, which runs from 0.05 to 0.14 across the five percentiles. The model carries almost no information about which particular year was warm or cold. This is expected of a free-running simulation: it is not initialised from observations and assimilates none, so its year-to-year variability is its own.
 
-| Season | Percentile | Climatology | Best transform | which | No correction |
+| Season | Percentile | Climatology | Best transfer function | which | No correction |
 |---|---|---|---|---|---|
 | DJF | P5 | **1.552** | 1.838 | Linear | 2.353 |
 | DJF | P25 | **1.242** | 1.467 | Linear | 2.067 |
@@ -374,23 +374,19 @@ The reason is visible in the year-to-year correlation between the modelled and t
 | SON | P90 | **0.891** | 1.205 | Polynomial | 1.912 |
 | **Mean** | | **1.030** | **1.337** | | **2.132** |
 
-**Table 10.** Mean MAE in °C for the climatology benchmark, the best transform in each cell, and no correction. "Climatology" predicts the mean of the other nine years' observed percentile at that pixel and uses no model input. "Best transform" is the lowest MAE among the six in that cell, with the method named. Bold marks the lower of climatology and the best transform. Averaged over every land pixel and every held-out fold, as elsewhere.
+**Table 10.** Mean MAE in °C for the climatology benchmark, the best transfer function in each cell, and no correction. "Climatology" predicts the mean of the other nine years' observed percentile at that pixel and uses no model input. "Best transfer function" is the lowest MAE among the six in that cell, with the method named. Bold marks the lower of climatology and the best transfer function. Averaged over every land pixel and every held-out fold, as elsewhere.
 
-Climatology has the lower MAE in **all 20 cells**. The gap is widest at SON P50, 0.806 against 1.519 °C, and at MAM P75, 1.041 against 1.675 °C. It is narrowest in summer: at JJA P50 the two are 0.577 and 0.589 °C, effectively equal. Both predictors beat no correction everywhere.
+This is not a failure of the transfer functions, and it is not a shortage of training years. The corrected series reproduces the observed year-to-year spread almost exactly. But a prediction with the right spread and no correlation to the truth is penalised for that spread — its errors run about `√2` times the observed standard deviation, while a near-constant climatological prediction stays close to one times it. The predicted ratio at nine training years, 1.34, matches the 1.30 measured. Because the `√2` does not depend on record length, a longer record would widen the gap rather than close it: the predicted ratio at 25 years is 1.39.
 
-This is not a failure of the transforms. They reproduce the observed year-to-year spread almost exactly — the standard deviation of the corrected percentile across years is 1.184 °C against 1.183 °C observed, a ratio of 1.00. But a prediction with the correct variance and no correlation to the truth has an error variance of twice the observed variance, so its RMSE is `σ√2 = 1.673 °C`; the measured value is 1.692 °C. A climatological prediction instead varies hardly at all, giving `σ√(1 + 1/K) = 1.247 °C` for K = 9 training years against a measured 1.298 °C. The transforms are penalised for succeeding at the thing they are designed to do.
-
-**This is not a sample-size effect.** The `√2` term does not depend on the record length, while the climatology term shrinks slowly towards `σ`. The predicted ratio of the two is 1.342 at K = 9, 1.386 at K = 24, and 1.414 in the limit, against 1.303 measured here. Extending the record to 25 years would therefore widen the gap slightly rather than close it. The correlation estimates are individually noisy at ten years — the standard error of a correlation from ten points is about 0.38 — but the variance decomposition does not depend on estimating them, and it accounts for the observed gap on its own.
-
-What it does indicate is that a year-specific target is the wrong one for this method. Quantile mapping is built to make a corrected series carry the right distribution, not to say which year was which. Measured against the target used here, ignoring the model is the better strategy, and no choice of transform changes that. A distribution-level evaluation — pooling the held-out years and comparing the pooled corrected distribution against the pooled observed one — would test what the method is for. That evaluation has not been run.
+The conclusion is about the target, not the method. Quantile mapping is built to give a corrected series the right distribution, not to say which year was which. Against a year-specific target, ignoring the model is the better strategy, and no choice of transfer function changes that. A distribution-level evaluation — pooling the held-out years and comparing the pooled corrected distribution against the pooled observed one — would test what the method is for. That evaluation has not been run.
 
 ### Next steps
 
-1. **Train/test split.** Cross-validation measures sampling error, not transferability. The 1980–2004 training period with 2005–2014 and 2015–2025 test periods is required to test whether a transform holds under a changed climate.
+1. **Train/test split.** Cross-validation measures sampling error, not transferability. The 1980–2004 training period with 2005–2014 and 2015–2025 test periods is required to test whether a transfer function holds under a changed climate.
 2. **A trend-preserving variant before any projection.** Plain quantile mapping builds its transfer function from the historical period alone. Cannon et al. (2015) report relative changes in 20-year return values exceeding +1500 % under plain QM against +120 % in the raw model. The 19.54 % extrapolation rate measured here is the same mechanism inside a stationary decade. QDM in additive form is the minimal upgrade; Switanek et al. (2017) give an explicit temperature algorithm.
 3. **Month rather than season**, once 25 years of training data are available.
 4. **Deliberate shrinkage towards climatology.** Where the year-to-year spread is large, a correction weighted towards the climatological percentile in proportion to that spread may outperform one that tracks the model. SON P5 is where this would matter most.
-5. **A distribution-level evaluation, and a climatology row in the tables.** Pool the held-out years and compare the pooled corrected distribution against the pooled observed one, which is the target quantile mapping is designed for. Report the climatology benchmark alongside the transforms, since it is the predictor any method has to beat on a year-specific target.
+5. **A distribution-level evaluation, and a climatology row in the tables.** Pool the held-out years and compare the pooled corrected distribution against the pooled observed one, which is the target quantile mapping is designed for. Report the climatology benchmark alongside the transfer functions, since it is the predictor any method has to beat on a year-specific target.
 6. **Repeat this comparison on the full data set.** The 1980–2004 training period, the 2005–2014 and 2015–2025 test periods and the full Mediterranean basin (24–47°N, 11°W–40°E) give 25 calibration years instead of 10 and about ten times the domain (118,041 grid points against 11,421). Both limits identified here — the short calibration record and the flatness of the comparison between methods — are properties of the present sample, so the ranking should not be treated as settled until it has been re-run at that scale. Choosing a method to carry forward is a decision for after that run, not before it.
 
 [^nodes]: The split follows the `qmap` R package (Gudmundsson 2016), which
