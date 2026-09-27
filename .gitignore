@@ -20,7 +20,10 @@ refrences/study-ref/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+# Source documents from supervisors stay out; generated summaries are
+# deliverables and belong in the repository.
 *.docx
+!summaries/*.docx
 comments-outline17042026.txt
 Shell\ commands.rtf
 # Generated figures are local-only, except the quantile-mapping set, which is
@@ -28,3 +31,15 @@ Shell\ commands.rtf
 plots/*
 !plots/fig_q*.png
 history/
+
+# Reference articles (PDFs are publisher copies, kept locally only)
+articles/
+
+# The global gitignore excludes .claude/, but CLAUDE.md is project
+# documentation and belongs in the repository. A parent directory cannot be
+# un-ignored by a negation alone, so re-include the directory, exclude its
+# contents, then re-include the one file. settings.local.json stays out: it is
+# per-machine.
+!.claude/
+.claude/*
+!.claude/CLAUDE.md
