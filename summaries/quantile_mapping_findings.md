@@ -20,10 +20,10 @@ The question is how much of the modelled variable's error a quantile-mapping tra
 
 The modelled variable is CMIP6 daily near-surface air temperature (`tas`) from CESM2-WACCM, historical experiment, member r1i1p1f1, regridded onto the ERA5-Land grid by **bilinear interpolation**.
 
-| | Grid | Spacing | Cells in the study box |
+| Dataset | Climate model | Resolution (lat × lon) | Cells in domain |
 |---|---|---|---|
-| CMIP6 (source) | CESM2-WACCM finite-volume | 0.942° lat × 1.250° lon | 153 |
-| ERA5-Land (target) | regular lat–lon | 0.100° × 0.100° | 11,421 |
+| CMIP6 (predictor) | CESM2-WACCM | 0.942° × 1.250° (≈105 × 119 km) | 105 |
+| ERA5-Land (target) | — (reanalysis) | 0.100° × 0.100° (≈11 × 10 km) | 11,421 |
 
 Each fine pixel takes a weighted average of the four surrounding coarse cell values, with weights linear in latitude and longitude distance. About 118 fine pixels fall inside one coarse cell. The operation is performed once with CDO `remapbil` and cached; `scipy.interpolate.RegularGridInterpolator` is the fallback where CDO is unavailable.
 
