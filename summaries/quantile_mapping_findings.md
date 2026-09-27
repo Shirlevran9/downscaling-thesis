@@ -245,7 +245,7 @@ The uncorrected bias is spatially coherent and largest over high ground: the Tur
 
 The q–q relation at this pixel has a pronounced S-bend. Normal and Linear, both straight lines, cut across it and leave an RMS departure of 1.22 °C. The four flexible transforms follow it and leave 0.51 to 0.75 °C, so they fit the training curve about twice as closely.
 
-That closer fit does not carry to the held-out years: the same flexible methods do not have lower MAE in Tables 2 to 4. The pixel in Fig. 5 is the most curved of the 7,683 land pixels. The median departure from a straight line is 0.45 °C and 76 % of pixels fall below 0.60 °C, against a best-method MAE of 1.371 °C. The departure from a straight line available to any method is therefore about a third of the error being made, and the six methods differ from one another by 0.019 °C in mean MAE.
+That closer fit does not carry to the held-out years. Tables 2 to 4 show that the more complex and the more smoothed transfer functions do not necessarily have lower MAE. The pixel in Fig. 5 was selected as the most curved of the 7,683 land pixels; the median departure from a straight line is 0.45 °C and 76 % of pixels fall below 0.60 °C, so at most pixels there is little curvature for a flexible function to capture.
 
 ### Selected hyper-parameters
 
