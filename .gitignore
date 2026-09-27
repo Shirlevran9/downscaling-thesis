@@ -43,3 +43,8 @@ articles/
 !.claude/
 .claude/*
 !.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/rules/
+!.claude/hooks/
+# settings.local.json stays local: it holds machine-specific paths.
+.claude/settings.local.json

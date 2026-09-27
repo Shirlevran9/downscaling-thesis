@@ -18,7 +18,7 @@ Sign convention
 ---------------
 ``bias = yhat - y`` — prediction minus observation, so a positive bias means
 the corrected predictor is too warm.  This matches the project convention
-documented in ``guidelines/analysis_guidelines.md`` §9 and used by
+documented in ``docs/adr/0013-bias-sign-convention.md`` and used by
 :func:`src.qm_metrics.combination_metrics`.
 
 Note the trap this module has to navigate.  ``combination_metrics`` returns

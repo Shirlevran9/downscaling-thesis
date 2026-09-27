@@ -3,7 +3,7 @@
 run_qm_transforms.py — Fit and cross-validate the quantile-mapping transforms.
 
 One predictor (bilinear), one distribution window (the meteorological season),
-eight transforms, leave-one-season-year-out cross-validation.  Everything is
+seven transfer functions, leave-one-season-year-out cross-validation.  Everything is
 written to ``data/cache/qm/transforms/`` as parquet, and the notebook reads
 those aggregates rather than refitting anything.
 

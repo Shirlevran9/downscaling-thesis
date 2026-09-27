@@ -17,7 +17,7 @@ Sign convention
 ---------------
 ``bias = mean(x - y)`` — predictor minus observation, so a positive bias means
 the predictor is too warm.  This follows the project convention (see
-``guidelines/analysis_guidelines.md`` §9) and is the negative of the ``bias``
+``docs/adr/0013-bias-sign-convention.md``) and is the negative of the ``bias``
 key returned by :func:`src.visualization.compute_regression_metrics`, which is
 observed minus predicted.
 
