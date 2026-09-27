@@ -40,7 +40,7 @@ Season rather than month is a sample-size choice. A calendar month gives about 3
 
 Each seasonal distribution is summarised at five percentiles: **P5, P25, P50, P75 and P90**. These are the target quantities; there is one prediction and one error per percentile.
 
-P50 is the seasonal median. P25 and P75 bound the interquartile range. P5 and P90 describe the tails without reaching the extremes: in a 92-day season P5 falls near the fifth coldest day and P90 near the ninth warmest, so both rest on several observations rather than one. True extremes, which would need a generalised extreme value treatment, are out of scope.
+P50 is the seasonal median. P25 and P75 bound the interquartile range. P5 and P90 describe the tails without reaching the extremes: in a 92-day season P5 falls near the fifth coldest day and P90 near the ninth warmest, so P5 rests on the 4.6th coldest value and P90 on the 9.2th warmest rather than on a single day. True extremes, which would need a generalised extreme value treatment, are out of scope.
 
 Percentiles are estimated with `numpy.percentile` default linear interpolation between order statistics, the same estimator on the predicted and observed side.
 
@@ -241,11 +241,11 @@ The uncorrected bias is spatially coherent and largest over high ground: the Tur
 
 ![Transform curves](../plots/fig_q13_transform_curves.png)
 
-**Fig. 5.** *The six fitted transforms at one pixel, SON, holding out 1995.* One panel per method. Grey circles are the 99 training q–q nodes, pairing sorted modelled values against sorted observed values; the dashed line is 1:1 and the coloured line is that method's fitted `h`. Each panel carries its own modelled-value axis, and is annotated with the root-mean-square departure of `h` from the nodes. The pixel shown, 38.0°N 35.0°E, is the one whose autumn q–q relation departs most from a straight line, so the methods are distinguishable; at a typical pixel the departure is 0.45 °C rather than 1.22 °C and all six curves lie almost on top of one another. Data: bilinear CMIP6 modelled variable against ERA5-Land, SON 1990–1999 excluding 1995.
+**Fig. 5.** *The six fitted transforms at one pixel, SON, holding out 1995.* One panel per method. Grey circles are the 99 training q–q nodes, pairing sorted modelled values against sorted observed values; the dashed line is 1:1 and the coloured line is that method's fitted `h`. Each panel carries its own modelled-value axis, and is annotated with the root-mean-square departure of `h` from the nodes. The pixel shown, 38.0°N 35.0°E, has the largest departure from a straight line of any land pixel in autumn, 1.22 °C against a median of 0.45 °C across the 7,683 land pixels, so the methods are distinguishable. At the median pixel all six curves lie almost on top of one another. Data: bilinear CMIP6 modelled variable against ERA5-Land, SON 1990–1999 excluding 1995.
 
 The q–q relation at this pixel has a pronounced S-bend. Normal and Linear, both straight lines, cut across it and leave an RMS departure of 1.22 °C. The four flexible transforms follow it and leave 0.51 to 0.75 °C, so they fit the training curve about twice as closely.
 
-That closer fit does not carry to the held-out years: the same flexible methods do not have lower MAE in Tables 2 to 4. The extra structure they capture is partly real curvature and partly sampling noise in the nine training years, and only the first generalises. At a typical pixel the departure from a straight line is 0.45 °C rather than 1.22 °C, leaving less real curvature to capture and the same amount of noise.
+That closer fit does not carry to the held-out years: the same flexible methods do not have lower MAE in Tables 2 to 4. The pixel in Fig. 5 is the most curved of the 7,683 land pixels. The median departure from a straight line is 0.45 °C and 76 % of pixels fall below 0.60 °C, against a best-method MAE of 1.371 °C. The departure from a straight line available to any method is therefore about a third of the error being made, and the six methods differ from one another by 0.019 °C in mean MAE.
 
 ### Selected hyper-parameters
 
@@ -286,7 +286,7 @@ Two patterns survive that filter.
 
 **JJA prefers less smoothing in QUANT.** Its inner-CV score falls monotonically from 11 to 99 nodes, so the summer distribution supports a finer table. Summer is the season with the smallest year-to-year spread.
 
-DJF is mixed. SSPLIN and Polynomial show a real preference for smoothing, while QUANT and RQUANT show none: QUANT's four candidates span 0.005 °C in an order that is not monotone (11, 49, 19, 99), so its selection of 11 nodes is arbitrary rather than informative. MAM is mostly noise as well.
+DJF is mixed. SSPLIN and Polynomial show a real preference for smoothing, while QUANT and RQUANT show none: QUANT's four candidates span 0.005 °C in an order that is not monotone (11, 49, 19, 99), so its selection of 11 nodes is arbitrary rather than informative. MAM behaves the same way: QUANT's candidates span 0.007 °C in the order 19, 49, 99, 11, which is also not monotone.
 
 The practical consequence is that the hyper-parameter grids can be narrowed or dropped for future work. Only SON, and QUANT in JJA, show a preference worth acting on.
 
@@ -346,7 +346,7 @@ The autumn cold tail is where the correction adds least. At SON P5 the floor is 
 
 ### A climatology benchmark beats every method
 
-Predicting the observed percentile of a specific held-out year without using the model at all — the mean of the other nine years' observed percentile at that pixel — gives an MAE of **1.032 °C**, against 1.371 °C for the best transform. Climatology wins in every season and at every percentile: 0.803 °C against about 1.55 at SON P50, 0.532 against about 0.66 at JJA P25.
+Predicting the observed percentile of a specific held-out year without using the model at all — the mean of the other nine years' observed percentile at that pixel — gives an MAE of **1.030 °C**, against 1.371 °C for Polynomial, the best single transform averaged over all twenty cells. Climatology wins in every season and at every percentile: 0.806 °C against 1.519 at SON P50, and 0.532 against 0.656 at JJA P25.
 
 The reason is visible in the year-to-year correlation between the modelled and the observed seasonal percentile. Averaged over land pixels it is 0.12 at P5, 0.05 at P25, 0.10 at P50, 0.14 at P75 and 0.08 at P90. The model carries almost no information about which particular year was warm or cold, which is expected of a free-running simulation: it is not initialised from observations and assimilates none, so its internal variability is its own.
 
@@ -391,7 +391,7 @@ What it does indicate is that a year-specific target is the wrong one for this m
 3. **Month rather than season**, once 25 years of training data are available.
 4. **Deliberate shrinkage towards climatology.** Where the year-to-year spread is large, a correction weighted towards the climatological percentile in proportion to that spread may outperform one that tracks the model. SON P5 is where this would matter most.
 5. **A distribution-level evaluation, and a climatology row in the tables.** Pool the held-out years and compare the pooled corrected distribution against the pooled observed one, which is the target quantile mapping is designed for. Report the climatology benchmark alongside the transforms, since it is the predictor any method has to beat on a year-specific target.
-6. **Repeat this comparison on the full data set.** The 1980–2004 training period, the 2005–2014 and 2015–2025 test periods and the full Mediterranean basin (24–47°N, 11°W–40°E) give 25 calibration years instead of 10 and roughly six times the domain. Both limits identified here — the short calibration record and the flatness of the comparison between methods — are properties of the present sample, so the ranking should not be treated as settled until it has been re-run at that scale. Choosing a method to carry forward is a decision for after that run, not before it.
+6. **Repeat this comparison on the full data set.** The 1980–2004 training period, the 2005–2014 and 2015–2025 test periods and the full Mediterranean basin (24–47°N, 11°W–40°E) give 25 calibration years instead of 10 and about ten times the domain (118,041 grid points against 11,421). Both limits identified here — the short calibration record and the flatness of the comparison between methods — are properties of the present sample, so the ranking should not be treated as settled until it has been re-run at that scale. Choosing a method to carry forward is a decision for after that run, not before it.
 
 [^nodes]: The split follows the `qmap` R package (Gudmundsson 2016), which
     accompanies Gudmundsson et al. (2012) and implements the same six methods.
