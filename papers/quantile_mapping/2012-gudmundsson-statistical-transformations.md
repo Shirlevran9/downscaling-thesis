@@ -32,28 +32,64 @@ nonparametric methods, QUANT and SSPLIN, rank first and second overall, and they
 keep that advantage in the extreme upper tail where several other methods fail.
 The methods are released as the R package `qmap`.
 
-## Glossary
+## Terms and notation
 
-| Symbol or term | Meaning in this paper |
+### Terms
+
+A **statistical transformation** is the authors' deliberately neutral name for
+this whole family of methods. Appendix A explains the choice: the literature
+calls them quantile mapping, CDF matching, probability mapping and several other
+things, often inconsistently, so the paper picks a term that does not take sides.
+
+The methods are sorted into three families by what each one assumes.
+**Distribution derived** methods assume a theoretical distribution on each side
+and solve for the mapping between them. **Parametric** methods assume nothing
+about the distributions but fit a chosen functional form straight onto the
+quantile–quantile relation. **Nonparametric** methods assume neither: they read
+the mapping off the data itself.
+
+Two nonparametric methods are tested. **QUANT** is empirical quantile mapping,
+storing the relation as a table of empirical percentiles and interpolating
+between them. **SSPLIN** fits a cubic smoothing spline to the same relation.
+
+A **Bernoulli-X** mixture is how the distribution-derived family copes with
+precipitation: a Bernoulli distribution for whether a day is wet at all, and
+some distribution X — Gamma, Weibull, Log-normal or Exponential — for how much
+fell on the wet days.
+
+The **RCM** is a regional climate model; here HIRHAM at 25 km resolution, driven
+by the ERA40 reanalysis. **Relative error** is a method's error divided by the
+error of the uncorrected model output, so below one is an improvement and above
+one makes things worse.
+
+### Notation
+
+The variables of the transformation itself:
+
+| Symbol | Meaning |
 |---|---|
 | $P_o$ | Observed precipitation |
 | $P_m$ | Modelled precipitation, from the RCM |
 | $\hat{P_o}$ | The method's best estimate of $P_o$ |
-| $h$ | The transformation: the function that maps a modelled value to a corrected one |
+| $h$ | The transformation: maps a modelled value to a corrected one |
 | $F_m$ | Cumulative distribution function (CDF) of $P_m$ |
 | $F_o^{-1}$ | Inverse CDF, or quantile function, of $P_o$ |
-| $a, b, c, x, \tau$ | Free parameters of the parametric transformations, fitted to data |
-| RCM | Regional climate model; here HIRHAM at 25 km, driven by the ERA40 reanalysis |
-| Statistical transformation | The authors' deliberately neutral name for this whole method family (Appendix A) |
-| Distribution derived | Family 1: assume a theoretical distribution for each side and solve for $h$ |
-| Parametric | Family 2: fit a chosen functional form directly to the q–q relation |
-| Nonparametric | Family 3: no assumed form; read $h$ off the data |
-| QUANT | Empirical quantile mapping, using tables of empirical percentiles |
-| SSPLIN | Cubic smoothing spline fitted to the q–q relation |
-| Bernoulli-X | A mixture: Bernoulli for whether it rains, distribution X for how much |
-| MAE | Mean absolute error between the observed and the corrected empirical CDF |
-| $\mathrm{MAE}_{0.1} \dots \mathrm{MAE}_{1.0}$ | The same error, computed separately in ten probability bands each 0.1 wide |
-| Relative error | A method's MAE divided by the MAE of the uncorrected model output |
+
+The free parameters of the parametric forms, Equations (3) to (7), all fitted to
+data: $a$, $b$, $c$, $x$ and $\tau$.
+
+The error scores form one family. **MAE** is the mean absolute error between the
+observed and the corrected empirical CDF. The ten band scores split that same
+error by where in the distribution it falls:
+
+| Score | Covers |
+|---|---|
+| $\mathrm{MAE}_{0.1}$ | the driest tenth — so it reflects how many wet days the method gets right |
+| $\mathrm{MAE}_{0.2} \dots \mathrm{MAE}_{0.9}$ | each successive tenth of the distribution |
+| $\mathrm{MAE}_{1.0}$ | the wettest tenth — so it reflects the extremes |
+
+The total MAE is the mean of the ten, which the authors note "illustrates the
+consistency of these measures".
 
 ## Previous work
 
@@ -91,9 +127,11 @@ Cannon (2008, 2012).
 
 ## Problem definition
 
-The goal is to find a function $h$ that maps the modelled variable so that its
-new distribution equals the distribution of the observed variable. Following
-Piani et al. (2010b), Equation (1) states it in general form:
+### Problem
+
+Find a function $h$ that maps the modelled variable so that its new
+distribution equals the distribution of the observed variable. Following Piani
+et al. (2010b), Equation (1) states it in general form:
 
 $$P_o = h(P_m) \qquad (1)$$
 
@@ -103,18 +141,20 @@ distribution is known, Equation (2) makes $h$ explicit:
 $$P_o = F_o^{-1}\left(F_m(P_m)\right) \qquad (2)$$
 
 In words: take a modelled value, ask what fraction of modelled values fall below
-it, then return the observed value with that same fraction below it. The practical
-difficulty, and the whole subject of the paper, is that $F_o$ and $F_m$ are not
-known and $h$ has to be approximated from data.
+it, then return the observed value with that same fraction below it. The
+practical difficulty, and the whole subject of the paper, is that $F_o$ and
+$F_m$ are not known, so $h$ has to be approximated from data.
 
-The three families differ in how they approximate it.
+### Models
+
+The three families differ in how they approximate $h$.
 
 **Distribution derived** (Sect. 2.1) assumes a theoretical distribution on each
-side and solves Equation (2). For precipitation the usual choice is a mixture of
-Bernoulli — for whether a day is wet at all — with a Gamma for the intensity.
-The paper also tests Bernoulli-Weibull, Bernoulli-Log-normal and
-Bernoulli-Exponential. Parameters are estimated by maximum likelihood "for both
-$P_o$ and $P_m$ independently" — a detail that turns out to explain the results.
+side and solves Equation (2). For precipitation the usual choice is Bernoulli
+for whether a day is wet, with a Gamma for the intensity; the paper also tests
+Bernoulli-Weibull, Bernoulli-Log-normal and Bernoulli-Exponential. Parameters
+are estimated by maximum likelihood "for both $P_o$ and $P_m$ independently" — a
+detail that turns out to explain the results.
 
 **Parametric** (Sect. 2.2) fits a chosen shape straight onto the q–q relation:
 
@@ -124,31 +164,37 @@ $$\hat{P_o} = b P_m^{\,c} \qquad (5)$$
 $$\hat{P_o} = b (P_m - x)^c \qquad (6)$$
 $$\hat{P_o} = (a + b P_m)\left(1 - e^{-(P_m - x)/\tau}\right) \qquad (7)$$
 
-Equation (3) is simple scaling, one free parameter. Equation (7) has four. All
-are fitted by minimising the residual sum of squares, over only the part of the
-CDF corresponding to observed wet days.
+Equation (3) is simple scaling, with one free parameter; Equation (7) has four.
+All are fitted by minimising the residual sum of squares, over only the part of
+the CDF corresponding to observed wet days.
 
-**Nonparametric** (Sect. 2.3) assumes no form. QUANT stores the empirical CDFs as
-"tables of empirical percentiles", with linear interpolation between them; for a
-new value above the training range, "the correction found for the highest quantile
-of the training period is used". SSPLIN fits a cubic smoothing spline to the q–q
-relation, with the smoothing parameter chosen by generalised cross-validation.
+**Nonparametric** (Sect. 2.3) assumes no form. QUANT stores the empirical CDFs
+as "tables of empirical percentiles", with linear interpolation between them;
+for a new value above the training range, "the correction found for the highest
+quantile of the training period is used". SSPLIN fits a cubic smoothing spline
+to the q–q relation, with the smoothing parameter chosen by generalised
+cross-validation.
 
-**Data and scoring.** Daily precipitation from 82 Norwegian stations, all covering
-1960–2000, against HIRHAM at 25 km driven by ERA40. Overall skill is the MAE
-between the observed and the corrected empirical CDF. To see *where* in the
-distribution a method works, that error is also computed in ten probability bands:
-$\mathrm{MAE}_{0.1}$ covers the driest tenth and so reflects how many wet days the
-method gets right; $\mathrm{MAE}_{1.0}$ covers the wettest tenth and so reflects
-the extremes. The total MAE is the mean of the ten, which the authors note
-"illustrates the consistency of these measures".
+### Data
+
+Daily precipitation from 82 stations in Norway, all covering 1960–2000, against
+the HIRHAM RCM at 25 km resolution driven by the ERA40 reanalysis. The
+observations are recorded to 0.1 mm day⁻¹, which sets the wet-day threshold.
+The methods are released as the R package `qmap`.
+
+### Evaluation metrics
+
+Overall skill is the MAE between the observed and the corrected empirical CDF,
+with the ten band scores showing where in the distribution a method works — see
+*Terms and notation*.
 
 Everything is scored out of sample, by **10-fold cross-validation** over
-continuous time intervals — deliberately, because "highly adaptable methods, such
-as the nonparametric techniques used in this study, are prone to over fitting the
-data". Methods are then ranked by relative error: each method's score divided by
-the uncorrected model's score, averaged across the eleven measures. Below one is
-an improvement; above one makes things worse.
+continuous time intervals. This is deliberate, because "highly adaptable
+methods, such as the nonparametric techniques used in this study, are prone to
+over fitting the data" (Sect. 4.1).
+
+Methods are then ranked by relative error, each method's score divided by the
+uncorrected model's score, averaged across the eleven measures.
 
 ## Main results
 
@@ -219,98 +265,54 @@ zero.
 
 ## Discussion
 
-The authors' conclusion is that the nonparametric methods should be the default:
-they have the best skill "through the entire range of the distribution" and have
-"the additional advantage that they can be applied without specific assumptions
-about the distribution of the data", so they are "recommended for most
-applications of statistical bias correction" (Sect. 7).
+The nonparametric methods are recommended as the default. They have the best
+skill "through the entire range of the distribution" and "can be applied without
+specific assumptions about the distribution of the data" (Sect. 7).
 
-They pair that with a warning against applying any of it blindly. Most methods
-did remove bias, but "it was also demonstrated that the performance of the methods
-differ substantially. Therefore, we stress that these techniques should not be
-applied without checking their suitability for the data under consideration"
-(Sect. 7).
+That comes with a warning against applying any of it blindly: "we stress that
+these techniques should not be applied without checking their suitability for
+the data under consideration" (Sect. 7).
 
-Three limitations are acknowledged.
+Three limits are acknowledged.
 
-**Overfitting, conditional on sample size.** Because all scores are
-cross-validated, "this suggests that over fitting is no major problem if there are
-sufficient data. Nevertheless, over fitting may be an issue if the nonparametric
-transformations are calibrated using small data samples, i.e. time series that
-cover only a short period" (Sect. 5). Their own record is 41 years of daily data
-at each of 82 stations.
-
-**Stationarity.** These methods assume the model-minus-observation difference
-stays the same in a future climate. The authors are explicit that this "cannot be
-fully assessed, as the variable of interest may exceed the observed range in a
-changing climate" (Sect. 6), and that "it cannot be ruled out that the methods
-perform badly if the projected climatic conditions differ substantially from the
-calibration period" (Sect. 5). They offer cross-validated stability, and a finding
-from Chen et al. (2011a) that the calibration period matters less than the choice
-of model and scenario, as partial reassurance rather than proof.
-
-**Side effects on properties nobody asked the method to change.** Citing Themeßl
-et al. (2011), the effect on projected changes in the mean is "comparably small"
-but the methods "may systematically alter changes in nonlinearly derived measures,
-including characteristics of extreme events". Other reported side effects are
-changes in the amplitude of low-frequency variability (Haerter et al., 2011) and
-in measures of temporal persistence (Johnson and Sharma, 2011, 2012). Whether such
-an effect is good, bad or irrelevant "depends on particular applications and has to
-be evaluated on a case to case basis" (Sect. 6).
-
-**Appendix A is about naming**, and worth knowing about. The authors list the terms
-in circulation — "quantile mapping", "quantile matching", "CDF matching",
-"quantile–quantile transformation", "histogram equalisation or matching",
-"probability mapping", "distribution mapping", "statistical bias correction",
-"direct error correction methods", "model output statistics (MOS)" — and note that
-several are used inconsistently across the three families, "causing some ambiguity
-regarding the proper nomenclature". They adopt "statistical transformation" for
-this paper to "emphasise the common objective of the presented techniques without
-interfering with previously used terminology".
+- **Overfitting, conditional on sample size.** Cross-validation suggests "over
+  fitting is no major problem if there are sufficient data. Nevertheless, over
+  fitting may be an issue if the nonparametric transformations are calibrated
+  using small data samples, i.e. time series that cover only a short period"
+  (Sect. 5). Their own record is 41 years.
+- **Stationarity.** The assumption that the model-minus-observation difference
+  holds in a future climate "cannot be fully assessed, as the variable of
+  interest may exceed the observed range in a changing climate" (Sect. 6).
+- **Side effects.** The methods "may systematically alter changes in nonlinearly
+  derived measures, including characteristics of extreme events" (Sect. 6),
+  along with low-frequency variability and temporal persistence. Whether that
+  matters "has to be evaluated on a case to case basis".
 
 ## Relevance to this project
 
 *Everything below is my own reading, not the paper's content.*
 
-**This paper is the source of our method taxonomy and of our code.** Our three
-families — distribution derived, parametric, non-parametric — are this paper's
-classification, and `src/qm_transforms.py` implements its methods. QUANT, RQUANT
-and SSPLIN reach us through the `qmap` R package released with this paper.
-RQUANT is worth flagging: it is *not* in this paper, only in the later package,
-so it should be cited to the package rather than here.
-
-**Two differences in scope matter when borrowing its conclusions.** The paper
-corrects **precipitation** from an **RCM driven by reanalysis**; we correct
-**temperature** from a **free-running GCM**. The Bernoulli mixtures exist only
-because precipitation has a mass of zeros, which is why our distribution-derived
-member is a plain normal instead. More consequentially, an RCM driven by ERA40
-follows the observed day-to-day sequence, while a free-running GCM does not — so
-their setting has a correspondence between modelled and observed days that ours
-lacks entirely.
-
-**Their headline result does not reproduce in our setting, and their own caveat
-predicts that.** They find the flexible nonparametric methods best; we find the
-choice barely matters and the rigid methods slightly ahead. Their sentence about
-overfitting "if the nonparametric transformations are calibrated using small data
-samples, i.e. time series that cover only a short period" is the direct
-explanation: they calibrate on 41 years, we calibrate on 9 or 10. This is the
-single most useful sentence in the paper for us, and it should be cited wherever
-our findings report that complexity did not buy accuracy.
-
-**Their per-band scoring is the ancestor of our per-percentile evaluation.** Our
-reporting of MAE at P5, P25, P50, P75 and P90 does what their
-$\mathrm{MAE}_{0.1} \dots \mathrm{MAE}_{1.0}$ does — refusing to collapse the
-distribution into one number. Their warning that two distribution-derived methods
-make the extremes *worse* is the same class of finding as our unanchored QUANT
-carrying a +1.8 °C bias at SON P5 (ADR-0004): a method can improve the average
-while damaging the tail.
-
-**Equation (7) is the one we implemented and removed.** The paper ranks it third
-of eleven, which is why it looked worth trying. It is built for precipitation,
-where $P_m \geq 0$; on temperature in °C the sign of $(P_m - x)$ can flip inside
-the data range. Our reasons for dropping it are in ADR-0007.
-
-**On terminology**, their Appendix A is the best short account of why this field's
-vocabulary is a mess, and it is a fair precedent for our own decision in
-`CONTEXT.md` to fix one term. They chose "statistical transformation"; we use
-"transfer function". Worth citing if that choice is ever questioned.
+- **This is the source of our taxonomy and our code.** Our three families are
+  this paper's classification, and QUANT, RQUANT and SSPLIN reach us through the
+  `qmap` package released with it. RQUANT is **not** in this paper — it is only
+  in the package, so cite it to the package.
+- **Two scope differences limit what we can borrow.** The paper corrects
+  precipitation from an RCM driven by reanalysis; we correct temperature from a
+  free-running GCM. The Bernoulli mixtures exist only because precipitation has
+  a mass of zeros, which is why our distribution-derived member is a plain
+  normal. More importantly, an RCM driven by ERA40 follows the observed day-to-day
+  sequence and a free-running GCM does not, so their setting has a
+  correspondence between modelled and observed days that ours lacks.
+- **Their headline result does not reproduce for us, and their own caveat says
+  why.** They find the flexible methods best; we find the choice barely matters.
+  They calibrate on 41 years, we calibrate on 9 or 10. Cite their overfitting
+  sentence wherever our findings report that complexity did not buy accuracy.
+- **Their band scoring is the ancestor of our per-percentile evaluation**, and
+  their finding that two distribution-derived methods make the extremes worse is
+  the same class of result as our unanchored QUANT carrying a +1.8 °C bias at
+  SON P5 (ADR-0004).
+- **Equation (7) is the one we implemented and removed.** It ranks third here,
+  which is why it looked worth trying; it is built for $P_m \geq 0$ and breaks on
+  temperature in °C. See ADR-0007.
+- **Appendix A is a precedent for fixing one term.** They chose "statistical
+  transformation"; we use "transfer function" in `CONTEXT.md`.
