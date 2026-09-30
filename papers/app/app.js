@@ -185,6 +185,29 @@ function showTopic(id) {
   document.title = t.title + ' — Paper summaries';
 }
 
+/* Markdown and LaTeX fight over `_` and `*`: marked turns the underscores in
+ * `\mathrm{MAE}_{0.1} \dots \mathrm{MAE}_{1.0}` into an <em>, which both
+ * destroys the subscript and unbalances the surrounding `$`, so KaTeX then
+ * renders a whole sentence as maths. Pull every maths span out before parsing
+ * and put it back afterwards, leaving KaTeX to see exactly what was written. */
+function renderMarkdown(md) {
+  const spans = [];
+  const stash = (m) => { spans.push(m); return '@@MATHSPAN' + (spans.length - 1) + '@@'; };
+
+  // Fenced and indented code must keep its dollars, so protect code first.
+  const code = [];
+  let s = md.replace(/```[\s\S]*?```|`[^`\n]+`/g, (m) => {
+    code.push(m); return '@@CODESPAN' + (code.length - 1) + '@@';
+  });
+
+  s = s.replace(/\$\$[\s\S]+?\$\$/g, stash);          // display maths
+  s = s.replace(/\$[^$\n]+?\$/g, stash);                // inline maths
+  s = s.replace(/@@CODESPAN(\d+)@@/g, (_, i) => code[+i]);
+
+  let html = marked.parse(s, { gfm: true, breaks: false });
+  return html.replace(/@@MATHSPAN(\d+)@@/g, (_, i) => spans[+i]);
+}
+
 async function showPaper(topic, paper) {
   current = { topic, paper };
   markSelected(paper.file);
@@ -201,7 +224,7 @@ async function showPaper(topic, paper) {
   }
 
   const doc = el('div', { class: 'doc' });
-  doc.innerHTML = marked.parse(md, { gfm: true, breaks: false });
+  doc.innerHTML = renderMarkdown(md);
 
   // Mark the one section that may hold the reader's own words, and give every
   // heading an id so a comment can name where it was made.

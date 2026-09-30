@@ -1,0 +1,22 @@
+{
+  "paper": "2012-gudmundsson-statistical-transformations.md",
+  "topic": "quantile_mapping",
+  "comments": [
+    {
+      "id": "16f3e708aa",
+      "created": "2026-09-30T13:12:56+00:00",
+      "section": "Glossary",
+      "quote": "$\\mathrm{MAE}{0.1} \\dots \\mathrm{MAE}{1.0}$",
+      "text": "Not seeing the equation, blury, not good",
+      "status": "resolved"
+    },
+    {
+      "id": "cff60babaf",
+      "created": "2026-09-30T13:13:29+00:00",
+      "section": "Problem definition",
+      "quote": "$\\mathrm{MAE}{0.1} 𝑐 𝑜 𝑣 𝑒 𝑟 𝑠 𝑡 ℎ 𝑒 𝑑 𝑟 𝑖 𝑒 𝑠 𝑡 𝑡 𝑒 𝑛 𝑡 ℎ 𝑎 𝑛 𝑑 𝑠 𝑜 𝑟 𝑒 𝑓 𝑙 𝑒 𝑐 𝑡 𝑠 ℎ 𝑜 𝑤 𝑚 𝑎 𝑛 𝑦 𝑤 𝑒 𝑡 𝑑 𝑎 𝑦 𝑠 𝑡 ℎ 𝑒 𝑚 𝑒 𝑡 ℎ 𝑜 𝑑 𝑔 𝑒 𝑡 𝑠 𝑟 𝑖 𝑔 ℎ 𝑡 ; coversthedriesttenthandsoreflectshowmanywetdaysthemethodgetsright;\\mathrm{MAE}{1.0}$",
+      "text": "Again, not seeing the equatio",
+      "status": "resolved"
+    }
+  ]
+}
