@@ -10,13 +10,15 @@
 </head>
 <body>
 <div class="shell">
-  <nav class="rail" aria-label="Topics and papers">
+  <nav class="rail" id="rail" aria-label="Topics and papers">
     <div class="rail-head">
       <p class="eyebrow">Thesis reading set</p>
       <h1>Paper summaries</h1>
     </div>
     <div id="nav"></div>
   </nav>
+  <button id="fold" class="fold" type="button" aria-controls="rail" aria-expanded="true"
+          title="Hide the navigation (\)"><span aria-hidden="true">&#9666;</span><span class="sr">Toggle navigation</span></button>
   <main class="main">
     <div id="view" class="view" aria-live="polite">
       <p class="msg">Loading&hellip;</p>

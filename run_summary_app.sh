@@ -38,7 +38,7 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   exit 1
 fi
 
-for required in "papers/topics.json" "$APP_PATH" "papers/app/app.js" "papers/app/vendor/marked.min.js"; do
+for required in "papers/topics.json" "$APP_PATH" "papers/app/app.js" "papers/app/server.py" "papers/app/vendor/marked.min.js"; do
   if [[ ! -f "$PROJECT_ROOT/$required" ]]; then
     echo "[error] missing $required — the app is incomplete" >&2
     exit 1
@@ -93,7 +93,7 @@ fi
 url="http://${HOST}:${port}/${APP_PATH}"
 
 cd "$PROJECT_ROOT"
-"$PYTHON" -m http.server "$port" --bind "$HOST" >/dev/null 2>&1 &
+"$PYTHON" papers/app/server.py "$port" "$HOST" >/dev/null 2>&1 &
 server_pid=$!
 
 for _ in $(seq 1 40); do

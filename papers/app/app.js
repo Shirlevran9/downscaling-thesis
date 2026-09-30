@@ -4,16 +4,25 @@
  * renders a paper's markdown on demand. No build step and no framework: the
  * summaries are the artefact, this only displays them.
  *
+ * Comments are saved through papers/app/server.py to
+ * papers/comments/<paper>.json, so a note survives the browser and can be read
+ * without the app.
+ *
  * The roving-focus keyboard handling follows history/summaries_html_v1.html.
  */
 
 const NAV = document.getElementById('nav');
 const VIEW = document.getElementById('view');
+const SHELL = document.querySelector('.shell');
+const FOLD_BTN = document.getElementById('fold');
 const DATA_URL = '../topics.json';   // relative to papers/app/
 const PAPERS_ROOT = '..';            // papers/
+const FOLD_KEY = 'papers.railFolded';
 
 let topics = [];
 let openTopic = null;
+let current = null;                  // { topic, paper } being read
+let comments = [];
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -22,6 +31,7 @@ function el(tag, props = {}, children = []) {
   for (const [k, v] of Object.entries(props)) {
     if (k === 'class') n.className = v;
     else if (k === 'text') n.textContent = v;
+    else if (k === 'html') n.innerHTML = v;
     else n.setAttribute(k, v);
   }
   for (const c of [].concat(children)) if (c) n.appendChild(c);
@@ -37,9 +47,36 @@ function msg(text, detail) {
   );
 }
 
-/* Sort by year, then by first author — the order stated in the papers rule. */
+/* Sort by year, then first author — the order stated in the papers rule. */
 function ordered(papers) {
   return papers.slice().sort((a, b) => a.year - b.year || a.authors.localeCompare(b.authors));
+}
+
+function firstAuthor(authors) {
+  return String(authors || '').split(',')[0];
+}
+
+/* ------------------------------------------------------- folding the rail */
+
+function applyFold(folded) {
+  SHELL.classList.toggle('folded', folded);
+  FOLD_BTN.setAttribute('aria-expanded', String(!folded));
+  FOLD_BTN.title = folded ? 'Show the navigation (\\)' : 'Hide the navigation (\\)';
+  try { localStorage.setItem(FOLD_KEY, folded ? '1' : '0'); } catch (e) { /* private mode */ }
+}
+
+function initFold() {
+  let folded = false;
+  try { folded = localStorage.getItem(FOLD_KEY) === '1'; } catch (e) { /* ignore */ }
+  applyFold(folded);
+  FOLD_BTN.addEventListener('click', () => applyFold(!SHELL.classList.contains('folded')));
+  document.addEventListener('keydown', (e) => {
+    const typing = /^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable;
+    if (e.key === '\\' && !typing && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      applyFold(!SHELL.classList.contains('folded'));
+    }
+  });
 }
 
 /* --------------------------------------------------------------------- nav */
@@ -79,10 +116,10 @@ function buildNav() {
         type: 'button',
         role: 'tab',
         id: 'tab-' + p.file,
-        'aria-selected': 'false',
+        'aria-selected': String(current && current.paper.file === p.file),
       }, [
         el('span', { class: 'year', text: String(p.year) }),
-        el('span', { class: 'who', text: p.authors.split(',')[0] }),
+        el('span', { class: 'who', text: firstAuthor(p.authors) }),
         el('span', { class: 'what', text: p.one_line || '' }),
       ]);
       tab.addEventListener('click', () => showPaper(t, p));
@@ -118,6 +155,7 @@ function markSelected(file) {
 function showTopic(id) {
   const t = topics.find((x) => x.id === id);
   if (!t) return;
+  current = null;
   markSelected(null);
 
   const rows = ordered(t.papers).map((p) => {
@@ -125,7 +163,7 @@ function showTopic(id) {
     link.addEventListener('click', (e) => { e.preventDefault(); showPaper(t, p); });
     return el('tr', {}, [
       el('td', { class: 'yr', text: String(p.year) }),
-      el('td', { text: p.authors.split(',')[0] + (p.authors.includes(',') ? ' et al.' : '') }),
+      el('td', { text: firstAuthor(p.authors) + (String(p.authors).includes(',') ? ' et al.' : '') }),
       el('td', {}, [link, el('div', { class: 'what', text: p.one_line || '' })]),
       el('td', { text: p.venue || '' }),
     ]);
@@ -148,6 +186,7 @@ function showTopic(id) {
 }
 
 async function showPaper(topic, paper) {
+  current = { topic, paper };
   markSelected(paper.file);
   const url = [PAPERS_ROOT, topic.id, paper.file].join('/');
 
@@ -164,17 +203,19 @@ async function showPaper(topic, paper) {
   const doc = el('div', { class: 'doc' });
   doc.innerHTML = marked.parse(md, { gfm: true, breaks: false });
 
-  // Mark the one section that may hold the reader's own words.
+  // Mark the one section that may hold the reader's own words, and give every
+  // heading an id so a comment can name where it was made.
   for (const h of doc.querySelectorAll('h2')) {
     if (/relevance to this project/i.test(h.textContent)) h.classList.add('own-reading');
   }
 
-  VIEW.replaceChildren(
-    doc,
-    el('p', { class: 'cite', text: [paper.authors, '(' + paper.year + ').', paper.title + '.',
-      paper.venue + '.', paper.doi ? 'doi:' + paper.doi : '', '· PDF: ' + paper.pdf]
-      .filter(Boolean).join(' ') })
-  );
+  const cite = el('p', {
+    class: 'cite',
+    text: [paper.authors, '(' + paper.year + ').', paper.title + '.', paper.venue + '.',
+      paper.doi ? 'doi:' + paper.doi : '', '· PDF: ' + paper.pdf].filter(Boolean).join(' '),
+  });
+
+  VIEW.replaceChildren(doc, cite, commentsPanel());
 
   try {
     renderMathInElement(doc, {
@@ -191,13 +232,172 @@ async function showPaper(topic, paper) {
     console.warn('KaTeX did not run:', err);
   }
 
-  document.title = paper.authors.split(',')[0] + ' ' + paper.year + ' — Paper summaries';
-  VIEW.parentElement.scrollTo({ top: 0 });
+  document.title = firstAuthor(paper.authors) + ' ' + paper.year + ' — Paper summaries';
+  window.scrollTo({ top: 0 });
+  loadComments();
+}
+
+/* ---------------------------------------------------------------- comments */
+
+/* Which `## ` section a DOM node sits under, so a note records its place. */
+function sectionOf(node) {
+  let n = node && node.nodeType === 3 ? node.parentNode : node;
+  while (n && n !== VIEW) {
+    for (let s = n.previousElementSibling; s; s = s.previousElementSibling) {
+      if (s.tagName === 'H2') return s.textContent.trim();
+    }
+    n = n.parentNode;
+  }
+  return '';
+}
+
+function commentsPanel() {
+  const list = el('div', { id: 'clist' });
+  const box = el('textarea', {
+    id: 'cbox', rows: '3',
+    placeholder: 'Select text in the summary to quote it, or just write a note…',
+    'aria-label': 'New comment',
+  });
+  const quoted = el('div', { id: 'cquote', class: 'cquote' });
+  quoted.hidden = true;
+
+  const save = el('button', { class: 'btn', type: 'button', text: 'Save note' });
+  const clear = el('button', { class: 'btn ghost', type: 'button', text: 'Clear quote' });
+  clear.addEventListener('click', () => { pendingQuote = ''; renderQuote(); });
+  save.addEventListener('click', addComment);
+
+  return el('section', { class: 'comments', 'aria-label': 'Comments' }, [
+    el('h2', { class: 'cheading', text: 'Notes' }),
+    list,
+    el('div', { class: 'cform' }, [quoted, box, el('div', { class: 'crow' }, [save, clear])]),
+  ]);
+}
+
+let pendingQuote = '';
+let pendingSection = '';
+
+function renderQuote() {
+  const q = document.getElementById('cquote');
+  if (!q) return;
+  q.hidden = !pendingQuote;
+  q.textContent = pendingQuote ? '“' + pendingQuote + '”' : '';
+}
+
+/* Capture a selection inside the rendered summary as the quote for the next note. */
+document.addEventListener('mouseup', () => {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+  const doc = VIEW.querySelector('.doc');
+  if (!doc || !doc.contains(sel.anchorNode)) return;
+  const text = sel.toString().trim().replace(/\s+/g, ' ');
+  if (!text) return;
+  pendingQuote = text.slice(0, 2000);
+  pendingSection = sectionOf(sel.anchorNode);
+  renderQuote();
+  const box = document.getElementById('cbox');
+  if (box) box.focus();
+});
+
+async function loadComments() {
+  if (!current) return;
+  try {
+    const r = await fetch('/api/comments?paper=' + encodeURIComponent(current.paper.file));
+    comments = r.ok ? (await r.json()).comments || [] : [];
+  } catch (err) {
+    comments = [];
+    renderComments(true);
+    return;
+  }
+  renderComments(false);
+}
+
+function renderComments(offline) {
+  const list = document.getElementById('clist');
+  if (!list) return;
+
+  if (offline) {
+    list.replaceChildren(el('p', { class: 'msg' }, [
+      el('span', { text: 'Notes need the app server. Start it with ' }),
+      el('code', { text: './run_summary_app.sh' }),
+    ]));
+    const form = document.querySelector('.cform');
+    if (form) form.hidden = true;
+    return;
+  }
+
+  if (!comments.length) {
+    list.replaceChildren(el('p', { class: 'cempty', text: 'No notes on this paper yet.' }));
+    return;
+  }
+
+  list.replaceChildren(...comments.map((c) => {
+    const done = c.status === 'resolved';
+    const toggle = el('button', {
+      class: 'btn tiny', type: 'button',
+      text: done ? 'Reopen' : 'Resolve',
+    });
+    toggle.addEventListener('click', () => setStatus(c.id, done ? 'open' : 'resolved'));
+    const del = el('button', { class: 'btn tiny ghost', type: 'button', text: 'Delete' });
+    del.addEventListener('click', () => removeComment(c.id));
+
+    return el('article', { class: 'comment' + (done ? ' resolved' : '') }, [
+      el('div', { class: 'cmeta', text: [c.section || 'general', c.created.replace('T', ' ').replace('+00:00', ' UTC')].join(' · ') }),
+      c.quote ? el('blockquote', { class: 'cquote', text: '“' + c.quote + '”' }) : null,
+      el('p', { class: 'ctext', text: c.text }),
+      el('div', { class: 'crow' }, [toggle, del]),
+    ]);
+  }));
+}
+
+async function post(body) {
+  const r = await fetch('/api/comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  return r.json();
+}
+
+async function addComment() {
+  const box = document.getElementById('cbox');
+  const text = (box.value || '').trim();
+  if (!text) { box.focus(); return; }
+  try {
+    await post({
+      action: 'add', paper: current.paper.file, topic: current.topic.id,
+      section: pendingSection, quote: pendingQuote, text,
+    });
+    box.value = '';
+    pendingQuote = ''; pendingSection = '';
+    renderQuote();
+    await loadComments();
+  } catch (err) {
+    alert('Could not save the note: ' + err.message);
+  }
+}
+
+async function setStatus(id, status) {
+  try {
+    const store = await post({ action: 'status', paper: current.paper.file, id, status });
+    comments = store.comments || [];
+    renderComments(false);
+  } catch (err) { alert('Could not update: ' + err.message); }
+}
+
+async function removeComment(id) {
+  try {
+    const store = await post({ action: 'delete', paper: current.paper.file, id });
+    comments = store.comments || [];
+    renderComments(false);
+  } catch (err) { alert('Could not delete: ' + err.message); }
 }
 
 /* -------------------------------------------------------------------- boot */
 
 (async function init() {
+  initFold();
+
   let data;
   try {
     const r = await fetch(DATA_URL);

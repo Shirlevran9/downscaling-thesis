@@ -52,3 +52,7 @@ papers/**/*.pdf
 !.claude/hooks/
 # settings.local.json stays local: it holds machine-specific paths.
 .claude/settings.local.json
+
+# Comment store scratch files from the app's atomic writes.
+papers/comments/*.json.tmp
+papers/comments/*.json.corrupt

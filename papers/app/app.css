@@ -357,3 +357,139 @@ table.papers a:hover { text-decoration: underline; }
   .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
   .main { padding-top: 2rem; }
 }
+
+/* ------------------------------------------------------- folding the rail */
+
+.sr {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.fold {
+  position: fixed;
+  top: 0.9rem;
+  left: calc(21rem - 1.1rem);
+  z-index: 20;
+  width: 2.2rem; height: 2.2rem;
+  display: grid; place-items: center;
+  background: var(--surface);
+  color: var(--slate);
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: left 0.18s ease, transform 0.18s ease;
+}
+
+.fold:hover { color: var(--signal); border-color: var(--signal); }
+
+.shell.folded { grid-template-columns: 0 minmax(0, 1fr); }
+/* The button is a child of .shell, and position:fixed takes it out of the grid,
+   so it needs a descendant selector rather than a sibling one. */
+.shell.folded .rail { width: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+.shell.folded .fold { left: 0.9rem; transform: rotate(180deg); }
+
+.rail { transition: opacity 0.14s ease; }
+.shell { transition: grid-template-columns 0.18s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell, .rail, .fold { transition: none; }
+}
+
+/* ------------------------------------------------------------- the notes */
+
+.comments {
+  max-width: 44rem;
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--rule);
+}
+
+.cheading {
+  font-family: var(--sans);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin: 0 0 1rem;
+}
+
+.cempty { color: var(--slate); font-style: italic; margin: 0 0 1.25rem; }
+
+.comment {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--signal);
+  border-radius: 4px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.comment.resolved { border-left-color: var(--rule); opacity: 0.62; }
+
+.cmeta {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--slate);
+  margin-bottom: 0.45rem;
+}
+
+blockquote.cquote, div.cquote {
+  margin: 0 0 0.6rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--rust);
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--slate);
+  font-size: var(--step--1);
+}
+
+.ctext { margin: 0 0 0.6rem; white-space: pre-wrap; }
+
+.cform {
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 0.9rem 1rem;
+}
+
+.cform textarea {
+  width: 100%;
+  font: inherit;
+  font-size: var(--step-0);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.55rem 0.7rem;
+  resize: vertical;
+}
+
+.cform textarea:focus-visible { outline: 2px solid var(--signal); outline-offset: -1px; }
+
+.crow { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+
+.btn {
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  background: var(--signal);
+  color: var(--surface);
+  border: 1px solid var(--signal);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn:hover { filter: brightness(1.08); }
+
+.btn.ghost { background: none; color: var(--slate); border-color: var(--rule); }
+.btn.ghost:hover { color: var(--ink); border-color: var(--slate); filter: none; }
+.btn.tiny { font-size: var(--step--1); padding: 0.25rem 0.6rem; }
+
+@media (max-width: 860px) {
+  .fold { display: none; }
+  .shell.folded { grid-template-columns: 1fr; }
+  .shell.folded .rail { opacity: 1; pointer-events: auto; }
+}
