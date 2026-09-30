@@ -78,18 +78,16 @@ The variables of the transformation itself:
 The free parameters of the parametric forms, Equations (3) to (7), all fitted to
 data: $a$, $b$, $c$, $x$ and $\tau$.
 
-The error scores form one family. **MAE** is the mean absolute error between the
-observed and the corrected empirical CDF. The ten band scores split that same
-error by where in the distribution it falls:
+The error scores form one family:
 
-| Score | Covers |
+| Symbol | Meaning |
 |---|---|
-| $\mathrm{MAE}_{0.1}$ | the driest tenth — so it reflects how many wet days the method gets right |
-| $\mathrm{MAE}_{0.2} \dots \mathrm{MAE}_{0.9}$ | each successive tenth of the distribution |
-| $\mathrm{MAE}_{1.0}$ | the wettest tenth — so it reflects the extremes |
+| $\mathrm{MAE}$ | Mean absolute error between the observed and the corrected empirical CDF |
+| $\mathrm{MAE}_{0.1}$ | The same error over the lowest 10 % of the distribution |
+| $\mathrm{MAE}_{0.2} \dots \mathrm{MAE}_{0.9}$ | Each successive 10 % band |
+| $\mathrm{MAE}_{1.0}$ | The highest 10 % |
 
-The total MAE is the mean of the ten, which the authors note "illustrates the
-consistency of these measures".
+The subscript names the upper bound of a band 0.1 wide.
 
 ## Previous work
 
@@ -184,9 +182,19 @@ The methods are released as the R package `qmap`.
 
 ### Evaluation metrics
 
-Overall skill is the MAE between the observed and the corrected empirical CDF,
-with the ten band scores showing where in the distribution a method works — see
-*Terms and notation*.
+Overall skill is the MAE between the observed and the corrected empirical CDF.
+The ten band scores locate that error: $\mathrm{MAE}_{0.1}$ falls in the dry part
+of the distribution, so it "indicat[es] discrepancies in the number of wet
+days", while $\mathrm{MAE}_{1.0}$ "indicates differences in the magnitude of the
+most extreme events" (Sect. 4.1).
+
+The total carries no information the bands do not. The authors note that MAE
+"can be computed as the mean of $\mathrm{MAE}_{0.1}$, $\mathrm{MAE}_{0.2}$, …,
+$\mathrm{MAE}_{1.0}$, which illustrates the consistency of these measures"
+(Sect. 4.1) — the bands are equally spaced in probability, so averaging the ten
+returns the overall figure. The bands decompose the total rather than adding to
+it, which is what makes a method that improves the mean while worsening the
+extremes visible at all.
 
 Everything is scored out of sample, by **10-fold cross-validation** over
 continuous time intervals. This is deliberate, because "highly adaptable

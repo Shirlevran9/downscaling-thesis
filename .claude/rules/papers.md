@@ -40,6 +40,17 @@ useful.
 
 Every symbol that appears later in the summary must be defined here.
 
+**This section defines; it does not explain.** A notation entry says what a
+symbol *is*, in as few words as carry the meaning — "$\mathrm{MAE}_{0.1}$: the
+error over the lowest 10 % of the distribution". It does not say why that band
+matters, what it reveals about a method, or how it behaved in this paper. That
+belongs in *Evaluation metrics* or *Main results*, where the reader has the
+context to use it.
+
+The test: if a line in this section would still make sense to someone who has
+not read the paper, it is a definition. If it depends on knowing the paper's
+setup or findings, it has drifted into explanation and belongs further down.
+
 **4. `## Previous work`** — what earlier work the paper builds on, what those
 researchers found, and what flaws the authors identify in it. This is the
 paper's own account of the literature, not yours.
