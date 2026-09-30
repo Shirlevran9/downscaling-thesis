@@ -378,11 +378,12 @@ table.papers a:hover { text-decoration: underline; }
   border: 1px solid var(--rule);
   border-radius: 50%;
   cursor: pointer;
-  font-size: 0.8rem;
+  padding: 0;
   transition: left 0.18s ease, transform 0.18s ease;
 }
 
 .fold:hover { color: var(--signal); border-color: var(--signal); }
+.fold svg { width: 1rem; height: 1rem; display: block; }
 
 .shell.folded { grid-template-columns: 0 minmax(0, 1fr); }
 /* The button is a child of .shell, and position:fixed takes it out of the grid,
@@ -397,48 +398,88 @@ table.papers a:hover { text-decoration: underline; }
   .shell, .rail, .fold { transition: none; }
 }
 
-/* ------------------------------------------------------------- the notes */
+/* --------------------------------------------------------- the notes dock */
 
-.comments {
-  max-width: 44rem;
-  margin-top: 3.5rem;
-  padding-top: 1.5rem;
-  border-top: 2px solid var(--rule);
-}
-
-.cheading {
-  font-family: var(--sans);
-  font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--slate);
-  margin: 0 0 1rem;
-}
-
-.cempty { color: var(--slate); font-style: italic; margin: 0 0 1.25rem; }
-
-.comment {
+.dock {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+  width: auto;                 /* collapsed: only as wide as the handle */
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--signal);
-  border-radius: 4px;
-  padding: 0.8rem 1rem;
-  margin-bottom: 0.9rem;
+  border-radius: 8px;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
 }
 
-.comment.resolved { border-left-color: var(--rule); opacity: 0.62; }
+.dock-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--slate);
+  background: var(--surface-2);
+  border: 0;
+  cursor: pointer;
+}
+
+.dock-handle:hover { color: var(--ink); }
+.dock.open { width: min(23rem, calc(100vw - 2.5rem)); }
+.dock.open .dock-handle { color: var(--signal); }
+
+.badge {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: 0;
+  min-width: 1.5rem;
+  padding: 0.05rem 0.4rem;
+  text-align: center;
+  border-radius: 999px;
+  background: var(--signal);
+  color: var(--surface);
+}
+
+.badge.zero { background: var(--rule); color: var(--slate); }
+
+.dock-body { border-top: 1px solid var(--rule); }
+
+.dock-list {
+  max-height: min(38vh, 22rem);
+  overflow-y: auto;
+  padding: 0.8rem 0.9rem 0.2rem;
+}
+
+.cempty { color: var(--slate); font-style: italic; margin: 0 0 0.8rem; font-size: var(--step--1); }
+
+.comment {
+  border-left: 3px solid var(--signal);
+  background: var(--surface-2);
+  border-radius: 3px;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.comment.resolved { border-left-color: var(--rule); opacity: 0.6; }
 
 .cmeta {
   font-family: var(--mono);
   font-size: var(--step--1);
   color: var(--slate);
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.35rem;
 }
 
 blockquote.cquote, div.cquote {
-  margin: 0 0 0.6rem;
-  padding-left: 0.8rem;
+  margin: 0 0 0.45rem;
+  padding-left: 0.7rem;
   border-left: 2px solid var(--rust);
   font-family: var(--serif);
   font-style: italic;
@@ -446,35 +487,31 @@ blockquote.cquote, div.cquote {
   font-size: var(--step--1);
 }
 
-.ctext { margin: 0 0 0.6rem; white-space: pre-wrap; }
+.ctext { margin: 0 0 0.5rem; white-space: pre-wrap; font-size: var(--step-0); }
 
-.cform {
-  background: var(--surface-2);
-  border-radius: 4px;
-  padding: 0.9rem 1rem;
-}
+.cform { padding: 0.7rem 0.9rem 0.9rem; border-top: 1px solid var(--rule); }
 
 .cform textarea {
   width: 100%;
   font: inherit;
   font-size: var(--step-0);
   color: var(--ink);
-  background: var(--surface);
+  background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 3px;
-  padding: 0.55rem 0.7rem;
+  padding: 0.5rem 0.65rem;
   resize: vertical;
 }
 
 .cform textarea:focus-visible { outline: 2px solid var(--signal); outline-offset: -1px; }
 
-.crow { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.crow { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
 
 .btn {
   font: inherit;
   font-size: var(--step--1);
   font-weight: 500;
-  padding: 0.4rem 0.85rem;
+  padding: 0.35rem 0.8rem;
   background: var(--signal);
   color: var(--surface);
   border: 1px solid var(--signal);
@@ -483,13 +520,63 @@ blockquote.cquote, div.cquote {
 }
 
 .btn:hover { filter: brightness(1.08); }
-
 .btn.ghost { background: none; color: var(--slate); border-color: var(--rule); }
 .btn.ghost:hover { color: var(--ink); border-color: var(--slate); filter: none; }
-.btn.tiny { font-size: var(--step--1); padding: 0.25rem 0.6rem; }
+.btn.tiny { padding: 0.2rem 0.55rem; }
+
+/* ------------------------------------------- a note anchored to its text */
+
+mark.anno {
+  background: var(--rust-soft);
+  color: inherit;
+  border-bottom: 1px solid var(--rust);
+  padding: 0.05em 0;
+  border-radius: 2px;
+}
+
+.note-pin {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem; height: 1.15rem;
+  margin: 0 0.15rem 0 0.2rem;
+  vertical-align: super;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--surface);
+  background: var(--rust);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.note-pin:hover { filter: brightness(1.1); }
+.note-pin.resolved { background: var(--slate); }
+
+.note-pop {
+  position: absolute;
+  z-index: 40;
+  width: min(20rem, calc(100vw - 2rem));
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rust);
+  border-radius: 6px;
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
+  padding: 0.7rem 0.85rem;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.note-pop.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .note-pop { transition: none; }
+}
 
 @media (max-width: 860px) {
   .fold { display: none; }
+  .dock { right: 0.6rem; bottom: 0.6rem; }
   .shell.folded { grid-template-columns: 1fr; }
   .shell.folded .rail { opacity: 1; pointer-events: auto; }
 }

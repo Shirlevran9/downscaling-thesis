@@ -18,7 +18,11 @@
     <div id="nav"></div>
   </nav>
   <button id="fold" class="fold" type="button" aria-controls="rail" aria-expanded="true"
-          title="Hide the navigation (\)"><span aria-hidden="true">&#9666;</span><span class="sr">Toggle navigation</span></button>
+          title="Hide the navigation (\)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+    <line x1="9.5" y1="4" x2="9.5" y2="20"></line>
+  </svg><span class="sr">Toggle navigation</span></button>
   <main class="main">
     <div id="view" class="view" aria-live="polite">
       <p class="msg">Loading&hellip;</p>
@@ -29,6 +33,7 @@
 <script src="vendor/marked.min.js"></script>
 <script src="vendor/katex.min.js"></script>
 <script src="vendor/auto-render.min.js"></script>
+<script src="notes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -215,7 +215,8 @@ async function showPaper(topic, paper) {
       paper.doi ? 'doi:' + paper.doi : '', '· PDF: ' + paper.pdf].filter(Boolean).join(' '),
   });
 
-  VIEW.replaceChildren(doc, cite, commentsPanel());
+  VIEW.replaceChildren(doc, cite);
+  buildDock();
 
   try {
     renderMathInElement(doc, {
@@ -251,26 +252,47 @@ function sectionOf(node) {
   return '';
 }
 
-function commentsPanel() {
-  const list = el('div', { id: 'clist' });
-  const box = el('textarea', {
-    id: 'cbox', rows: '3',
-    placeholder: 'Select text in the summary to quote it, or just write a note…',
-    'aria-label': 'New comment',
-  });
+function buildDock() {
+  if (document.getElementById('dock')) return;
+
+  const badge = el('span', { class: 'badge', id: 'dockcount', text: '0' });
+  const handle = el('button', {
+    class: 'dock-handle', type: 'button', id: 'docktoggle',
+    'aria-expanded': 'false', 'aria-controls': 'dockbody',
+  }, [el('span', { text: 'Notes' }), badge]);
+
   const quoted = el('div', { id: 'cquote', class: 'cquote' });
   quoted.hidden = true;
-
+  const box = el('textarea', {
+    id: 'cbox', rows: '3',
+    placeholder: 'Select text in the summary to quote it, or just write a note\u2026',
+    'aria-label': 'New note',
+  });
   const save = el('button', { class: 'btn', type: 'button', text: 'Save note' });
   const clear = el('button', { class: 'btn ghost', type: 'button', text: 'Clear quote' });
-  clear.addEventListener('click', () => { pendingQuote = ''; renderQuote(); });
   save.addEventListener('click', addComment);
+  clear.addEventListener('click', () => { pendingQuote = ''; pendingSection = ''; renderQuote(); });
 
-  return el('section', { class: 'comments', 'aria-label': 'Comments' }, [
-    el('h2', { class: 'cheading', text: 'Notes' }),
-    list,
+  const body = el('div', { class: 'dock-body', id: 'dockbody' }, [
+    el('div', { id: 'clist', class: 'dock-list' }),
     el('div', { class: 'cform' }, [quoted, box, el('div', { class: 'crow' }, [save, clear])]),
   ]);
+  body.hidden = true;
+
+  const dock = el('aside', { class: 'dock', id: 'dock', 'aria-label': 'Notes' }, [handle, body]);
+  document.body.appendChild(dock);
+
+  handle.addEventListener('click', () => setDock(body.hidden));
+}
+
+function setDock(open) {
+  const body = document.getElementById('dockbody');
+  const handle = document.getElementById('docktoggle');
+  if (!body) return;
+  body.hidden = !open;
+  handle.setAttribute('aria-expanded', String(open));
+  document.getElementById('dock').classList.toggle('open', open);
+  if (open) { const b = document.getElementById('cbox'); if (b) b.focus(); }
 }
 
 let pendingQuote = '';
@@ -294,8 +316,7 @@ document.addEventListener('mouseup', () => {
   pendingQuote = text.slice(0, 2000);
   pendingSection = sectionOf(sel.anchorNode);
   renderQuote();
-  const box = document.getElementById('cbox');
-  if (box) box.focus();
+  setDock(true);
 });
 
 async function loadComments() {
@@ -313,6 +334,7 @@ async function loadComments() {
 
 function renderComments(offline) {
   const list = document.getElementById('clist');
+  const count = document.getElementById('dockcount');
   if (!list) return;
 
   if (offline) {
@@ -322,31 +344,60 @@ function renderComments(offline) {
     ]));
     const form = document.querySelector('.cform');
     if (form) form.hidden = true;
+    if (count) count.textContent = '-';
     return;
+  }
+
+  const open = comments.filter((c) => c.status !== 'resolved').length;
+  if (count) {
+    count.textContent = String(open);
+    count.classList.toggle('zero', open === 0);
   }
 
   if (!comments.length) {
     list.replaceChildren(el('p', { class: 'cempty', text: 'No notes on this paper yet.' }));
-    return;
+  } else {
+    list.replaceChildren(...comments.map((c, i) => {
+      const done = c.status === 'resolved';
+      const toggle = el('button', { class: 'btn tiny', type: 'button', text: done ? 'Reopen' : 'Resolve' });
+      toggle.addEventListener('click', () => setStatus(c.id, done ? 'open' : 'resolved'));
+      const del = el('button', { class: 'btn tiny ghost', type: 'button', text: 'Delete' });
+      del.addEventListener('click', () => removeComment(c.id));
+      const jump = el('button', { class: 'btn tiny ghost', type: 'button', text: 'Show' });
+      jump.addEventListener('click', () => {
+        const pin = VIEW.querySelector('.note-pin[data-id="' + c.id + '"]');
+        if (pin) { pin.scrollIntoView({ block: 'center', behavior: 'smooth' }); pin.click(); }
+      });
+      return el('article', { class: 'comment' + (done ? ' resolved' : '') }, [
+        el('div', { class: 'cmeta', text: (i + 1) + ' · ' + (c.section || 'general') }),
+        c.quote ? el('blockquote', { class: 'cquote', text: '\u201c' + c.quote + '\u201d' }) : null,
+        el('p', { class: 'ctext', text: c.text }),
+        el('div', { class: 'crow' }, [c.quote ? jump : null, toggle, del].filter(Boolean)),
+      ]);
+    }));
   }
+  anchorNotes();
+}
 
-  list.replaceChildren(...comments.map((c) => {
-    const done = c.status === 'resolved';
-    const toggle = el('button', {
-      class: 'btn tiny', type: 'button',
-      text: done ? 'Reopen' : 'Resolve',
-    });
-    toggle.addEventListener('click', () => setStatus(c.id, done ? 'open' : 'resolved'));
-    const del = el('button', { class: 'btn tiny ghost', type: 'button', text: 'Delete' });
-    del.addEventListener('click', () => removeComment(c.id));
-
-    return el('article', { class: 'comment' + (done ? ' resolved' : '') }, [
-      el('div', { class: 'cmeta', text: [c.section || 'general', c.created.replace('T', ' ').replace('+00:00', ' UTC')].join(' · ') }),
-      c.quote ? el('blockquote', { class: 'cquote', text: '“' + c.quote + '”' }) : null,
-      el('p', { class: 'ctext', text: c.text }),
-      el('div', { class: 'crow' }, [toggle, del]),
-    ]);
-  }));
+/* Pin each quoted note next to the text it refers to. Runs after KaTeX so the
+   offsets match what the reader selected. */
+function anchorNotes() {
+  const doc = VIEW.querySelector('.doc');
+  if (!doc || !window.Notes) return;
+  Notes.clearPins(doc);
+  Notes.closePopover();
+  comments.forEach((c, i) => {
+    if (!c.quote) return;
+    const range = Notes.rangeForQuote(doc, c.quote);
+    if (!range) return;
+    const pin = Notes.pinRange(range, i + 1, (p) => Notes.openPopover(p, c, {
+      setStatus, remove: removeComment,
+    }));
+    if (pin) {
+      pin.dataset.id = c.id;
+      if (c.status === 'resolved') pin.classList.add('resolved');
+    }
+  });
 }
 
 async function post(body) {
@@ -372,6 +423,7 @@ async function addComment() {
     pendingQuote = ''; pendingSection = '';
     renderQuote();
     await loadComments();
+    setDock(true);
   } catch (err) {
     alert('Could not save the note: ' + err.message);
   }
