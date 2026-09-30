@@ -429,4 +429,4 @@ The conclusion is about the target, not the method. Quantile mapping is built to
 - **Ruff, T. W., Neelin, J. D. (2012).** Long tails in regional surface temperature probability distributions with implications for extremes under global warming. *Geophysical Research Letters*, 39, L04704.
 - **Switanek, M. B., et al. (2017).** Scaled distribution mapping: a bias correction method that preserves raw climate model projected changes. *Hydrology and Earth System Sciences*, 21, 2649–2666.
 
-Papers are held under `articles/quantile_mapping/`, which is gitignored.
+Papers are held under `papers/quantile_mapping/`; the PDFs are gitignored, their summaries are not.

@@ -1,0 +1,359 @@
+/* Paper summaries — reading app.
+   Design tokens carried over verbatim from history/summaries_html_v1.html so
+   the two pages look like the same project. Do not fork the palette. */
+
+:root {
+  --paper:      #F6F7F8;
+  --surface:    #FFFFFF;
+  --surface-2:  #EDF0F2;
+  --ink:        #141A1E;
+  --slate:      #5A6A73;
+  --rule:       #D5DBDE;
+  --signal:     #2D6E8E;
+  --signal-soft:#E4EDF2;
+  --rust:       #B0532A;
+  --rust-soft:  #F6E9E2;
+
+  --serif: "Spectral", Georgia, "Times New Roman", serif;
+  --sans:  "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0:  0.9688rem;
+  --step-1:  1.125rem;
+  --step-2:  1.375rem;
+  --step-3:  1.875rem;
+  --step-4:  2.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #0F1417;
+    --surface:    #161D21;
+    --surface-2:  #1D262B;
+    --ink:        #E6EBED;
+    --slate:      #9BAAB2;
+    --rule:       #2A353B;
+    --signal:     #6FB4D4;
+    --signal-soft:#16292F;
+    --rust:       #DE9269;
+    --rust-soft:  #2A1D16;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:      #0F1417;
+  --surface:    #161D21;
+  --surface-2:  #1D262B;
+  --ink:        #E6EBED;
+  --slate:      #9BAAB2;
+  --rule:       #2A353B;
+  --signal:     #6FB4D4;
+  --signal-soft:#16292F;
+  --rust:       #DE9269;
+  --rust-soft:  #2A1D16;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.6;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 21rem minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* ---------------------------------------------------------------- the rail */
+
+.rail {
+  background: var(--surface);
+  border-right: 1px solid var(--rule);
+  padding: 1.5rem 0 3rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.rail-head {
+  padding: 0 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0.75rem;
+}
+
+.rail-head .eyebrow {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin: 0 0 0.35rem;
+}
+
+.rail-head h1 {
+  font-family: var(--serif);
+  font-size: var(--step-2);
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.25;
+}
+
+/* A topic group: the topic button, with its papers revealed above the next
+   topic when open. */
+.topic-group { border-bottom: 1px solid var(--rule); }
+
+.topic-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  padding: 0.85rem 1.25rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.topic-btn:hover { background: var(--surface-2); }
+
+.topic-btn[aria-expanded="true"] {
+  border-left-color: var(--signal);
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+.topic-btn .count {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 400;
+  color: var(--slate);
+  margin-left: 0.4rem;
+}
+
+.paper-list { padding: 0.25rem 0 0.6rem; }
+
+.tab {
+  display: grid;
+  grid-template-columns: 2.9rem 1fr;
+  gap: 0 0.6rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  padding: 0.5rem 1.25rem 0.5rem 1.5rem;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tab:hover { background: var(--surface-2); }
+
+.tab[aria-selected="true"] {
+  border-left-color: var(--rust);
+  background: var(--rust-soft);
+}
+
+.tab .year {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--slate);
+  padding-top: 0.1rem;
+}
+
+.tab[aria-selected="true"] .year { color: var(--rust); }
+
+.tab .who { font-weight: 500; }
+
+.tab .what {
+  grid-column: 2;
+  font-size: var(--step--1);
+  color: var(--slate);
+  line-height: 1.4;
+}
+
+.rail button:focus-visible,
+.main a:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+
+/* ---------------------------------------------------------------- content */
+
+.main { padding: 3rem clamp(1.25rem, 4vw, 4rem) 6rem; }
+.view { max-width: 44rem; }
+
+.view h1 {
+  font-family: var(--serif);
+  font-size: var(--step-4);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+}
+
+.view .standfirst {
+  font-family: var(--serif);
+  font-size: var(--step-1);
+  color: var(--slate);
+  margin: 0 0 2.5rem;
+}
+
+/* Rendered markdown */
+.doc h1 {
+  font-family: var(--serif);
+  font-size: var(--step-3);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 1.5rem;
+}
+
+.doc h2 {
+  font-family: var(--sans);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--signal);
+  margin: 2.75rem 0 0.9rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.doc h3 {
+  font-family: var(--serif);
+  font-size: var(--step-1);
+  font-weight: 600;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.doc p { margin: 0 0 1rem; }
+.doc strong { font-weight: 600; }
+
+.doc blockquote {
+  margin: 1.25rem 0;
+  padding: 0.25rem 0 0.25rem 1.1rem;
+  border-left: 3px solid var(--rust);
+  color: var(--slate);
+  font-family: var(--serif);
+  font-style: italic;
+}
+
+.doc blockquote p:last-child { margin-bottom: 0; }
+
+.doc code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--surface-2);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+.doc pre {
+  background: var(--surface-2);
+  padding: 0.9rem 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.doc pre code { background: none; padding: 0; }
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc th, .doc td {
+  text-align: left;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+.doc th {
+  background: var(--surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.doc ul, .doc ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+.doc li { margin-bottom: 0.35rem; }
+
+/* The one section allowed to contain the reader's own words gets marked. */
+.doc h2.own-reading {
+  color: var(--rust);
+  border-bottom-color: var(--rust);
+}
+
+.table-wrap { overflow-x: auto; }
+
+table.papers {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0 0;
+  font-size: var(--step--1);
+}
+
+table.papers th, table.papers td {
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+table.papers th {
+  background: var(--surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+table.papers td.yr { font-family: var(--mono); color: var(--slate); white-space: nowrap; }
+
+table.papers a {
+  color: var(--signal);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+table.papers a:hover { text-decoration: underline; }
+
+.cite {
+  font-size: var(--step--1);
+  color: var(--slate);
+  font-family: var(--mono);
+  margin: 0 0 2rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--surface-2);
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.msg {
+  padding: 1rem 1.2rem;
+  border-left: 3px solid var(--rust);
+  background: var(--rust-soft);
+  color: var(--ink);
+}
+
+.msg code { font-family: var(--mono); font-size: 0.9em; }
+
+/* KaTeX display equations scroll rather than overflow the column. */
+.doc .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.2rem 0; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .main { padding-top: 2rem; }
+}

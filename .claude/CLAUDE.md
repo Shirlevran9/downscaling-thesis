@@ -40,7 +40,7 @@ Thesis/
 ├── dashboards/         # Streamlit app
 ├── summaries/          # findings documents
 ├── plots/              # generated figures
-├── articles/           # papers (gitignored)
+├── papers/             # paper summaries + the reading app (PDFs gitignored)
 └── history/            # superseded work, kept for the record
 ```
 

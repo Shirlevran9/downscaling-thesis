@@ -1,0 +1,102 @@
+{
+  "generated_by": "hand-maintained; the app builds its navigation from this file",
+  "topics": [
+    {
+      "id": "quantile_mapping",
+      "title": "Quantile mapping",
+      "overview": "Quantile mapping corrects a climate model's distribution by mapping its quantiles onto observed ones. These papers run from the method's definition and comparison of transform families, through the objections raised against it — that it cannot add fine-scale skill, and that it distorts the projected trend — to the variants proposed in answer, and to the question of how the calibration sample should be split. Two further papers describe how daily temperature is actually distributed, which is what the parametric variants assume.",
+      "papers": [
+        {
+          "file": "2012-gudmundsson-statistical-transformations.md",
+          "year": 2012,
+          "authors": "Gudmundsson, L., Bremnes, J. B., Haugen, J. E., Engen-Skaugen, T.",
+          "title": "Technical Note: Downscaling RCM precipitation to the station scale using statistical transformations - a comparison of methods",
+          "venue": "Hydrol. Earth Syst. Sci. 16, 3383-3390",
+          "doi": "10.5194/hess-16-3383-2012",
+          "pdf": "Gudmundsson2012_QM_transformations_HESS.pdf",
+          "one_line": "Defines and compares the transform families; source of the qmap package."
+        },
+        {
+          "file": "2012-ruff-long-tails.md",
+          "year": 2012,
+          "authors": "Ruff, T. W., Neelin, J. D.",
+          "title": "Long tails in regional surface temperature probability distributions with implications for extremes under global warming",
+          "venue": "Geophys. Res. Lett. 39, L04704",
+          "doi": "10.1029/2011GL050610",
+          "pdf": "Ruff2012_LongTails_GRL.pdf",
+          "one_line": "Daily temperature has longer-than-Gaussian tails."
+        },
+        {
+          "file": "2013-maraun-inflation-issue.md",
+          "year": 2013,
+          "authors": "Maraun, D.",
+          "title": "Bias Correction, Quantile Mapping, and Downscaling: Revisiting the Inflation Issue",
+          "venue": "J. Climate 26, 2137-2143",
+          "doi": "10.1175/JCLI-D-12-00821.1",
+          "pdf": "Maraun2013_QM_InflationIssue_JClimate.pdf",
+          "one_line": "Quantile mapping cannot downscale: it inflates variance without adding skill."
+        },
+        {
+          "file": "2013-perron-non-gaussian-climatology.md",
+          "year": 2013,
+          "authors": "Perron, M., Sura, P.",
+          "title": "Climatology of Non-Gaussian Atmospheric Statistics",
+          "venue": "J. Climate 26, 1063-1083",
+          "doi": "10.1175/JCLI-D-11-00504.1",
+          "pdf": "Perron2013_NonGaussian_JClimate.pdf",
+          "one_line": "Global maps of daily skewness and kurtosis."
+        },
+        {
+          "file": "2015-cannon-quantile-delta-mapping.md",
+          "year": 2015,
+          "authors": "Cannon, A. J., Sobie, S. R., Murdock, T. Q.",
+          "title": "Bias Correction of GCM Precipitation by Quantile Mapping: How Well Do Methods Preserve Changes in Quantiles and Extremes?",
+          "venue": "J. Climate 28, 6938-6959",
+          "doi": "10.1175/JCLI-D-14-00754.1",
+          "pdf": "Cannon2015_QDM_JClimate.pdf",
+          "one_line": "Quantile mapping distorts the projected trend; proposes QDM as the fix."
+        },
+        {
+          "file": "2017-switanek-scaled-distribution-mapping.md",
+          "year": 2017,
+          "authors": "Switanek, M. B., Troch, P. A., Castro, C. L., Leuprecht, A., Chang, H.-I., Mukherjee, R., Demaria, E. M. C.",
+          "title": "Scaled distribution mapping: a bias correction method that preserves raw climate model projected changes",
+          "venue": "Hydrol. Earth Syst. Sci. 21, 2649-2666",
+          "doi": "10.5194/hess-21-2649-2017",
+          "pdf": "Switanek2017_ScaledDistributionMapping_HESS.pdf",
+          "one_line": "Scales the correction so the model's own projected change survives."
+        },
+        {
+          "file": "2018-reiter-subsamples.md",
+          "year": 2018,
+          "authors": "Reiter, P., Gutjahr, O., Schefczyk, L., Heinemann, G., Casper, M.",
+          "title": "Does applying quantile mapping to subsamples improve the bias correction of daily precipitation?",
+          "venue": "Int. J. Climatol. 38, 1623-1633",
+          "doi": "10.1002/joc.5283",
+          "pdf": "Reiter2018_QM_Subsamples_IJC.pdf",
+          "one_line": "The one paper that tests sub-annual stratification directly."
+        },
+        {
+          "file": "2019-lange-isimip3basd.md",
+          "year": 2019,
+          "authors": "Lange, S.",
+          "title": "Trend-preserving bias adjustment and statistical downscaling with ISIMIP3BASD (v1.0)",
+          "venue": "Geosci. Model Dev. 12, 3055-3070",
+          "doi": "10.5194/gmd-12-3055-2019",
+          "pdf": "Lange2019_ISIMIP3BASD_GMD.pdf",
+          "one_line": "Trend-preserving adjustment plus downscaling, applied per calendar month."
+        },
+        {
+          "file": "2023-lehner-quantile-bias-adjustment.md",
+          "year": 2023,
+          "authors": "Lehner, F., Nadeem, I., Formayer, H.",
+          "title": "Evaluating skills and issues of quantile-based bias adjustment for climate change scenarios",
+          "venue": "Adv. Stat. Clim. Meteorol. Oceanogr. 9, 29-44",
+          "doi": "10.5194/ascmo-9-29-2023",
+          "pdf": "Lehner2023_QM_BiasAdjustment_ASCMO.pdf",
+          "one_line": "What quantile-based adjustment can and cannot deliver; calibration length."
+        }
+      ]
+    }
+  ]
+}

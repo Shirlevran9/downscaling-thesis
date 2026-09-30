@@ -30,10 +30,14 @@ Shell\ commands.rtf
 # embedded in summaries/quantile_mapping_findings.md and must render on GitHub.
 plots/*
 !plots/fig_q*.png
-history/
+# 'history/*' rather than 'history/': git never looks inside a directory it
+# has excluded outright, so the negation below would have no effect.
+history/*
+!history/summaries_html_v1.html
 
-# Reference articles (PDFs are publisher copies, kept locally only)
-articles/
+# Paper PDFs are publisher copies, kept locally only. The summaries written
+# beside them are our own work and are tracked, so only the PDFs are excluded.
+papers/**/*.pdf
 
 # The global gitignore excludes .claude/, but CLAUDE.md is project
 # documentation and belongs in the repository. A parent directory cannot be

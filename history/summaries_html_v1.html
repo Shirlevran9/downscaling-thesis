@@ -1,0 +1,1279 @@
+<title>Quantile Mapping Reading Set</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper:      #F6F7F8;
+    --surface:    #FFFFFF;
+    --surface-2:  #EDF0F2;
+    --ink:        #141A1E;
+    --slate:      #5A6A73;
+    --rule:       #D5DBDE;
+    --signal:     #2D6E8E;
+    --signal-soft:#E4EDF2;
+    --rust:       #B0532A;
+    --rust-soft:  #F6E9E2;
+
+    --serif: "Spectral", Georgia, "Times New Roman", serif;
+    --sans:  "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --step--1: 0.8125rem;
+    --step-0:  0.9688rem;
+    --step-1:  1.125rem;
+    --step-2:  1.375rem;
+    --step-3:  1.875rem;
+    --step-4:  2.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0F1417;
+      --surface:    #161D21;
+      --surface-2:  #1D262B;
+      --ink:        #E6EBED;
+      --slate:      #9BAAB2;
+      --rule:       #2A353B;
+      --signal:     #6FB4D4;
+      --signal-soft:#16292F;
+      --rust:       #DE9269;
+      --rust-soft:  #2A1D16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0F1417;
+    --surface:    #161D21;
+    --surface-2:  #1D262B;
+    --ink:        #E6EBED;
+    --slate:      #9BAAB2;
+    --rule:       #2A353B;
+    --signal:     #6FB4D4;
+    --signal-soft:#16292F;
+    --rust:       #DE9269;
+    --rust-soft:  #2A1D16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 1.5rem 5rem;
+  }
+
+  /* ---------- masthead ---------- */
+
+  header.masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2rem;
+    align-items: end;
+    padding: 3rem 0 1.25rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 0.6rem;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: var(--step-4);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0 0 0.7rem;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--slate);
+    font-size: var(--step-1);
+    line-height: 1.5;
+  }
+
+  .qq-sketch { display: block; }
+  @media (max-width: 780px) { .qq-sketch { display: none; } }
+
+  /* ---------- layout ---------- */
+
+  .shell {
+    display: grid;
+    grid-template-columns: 20rem minmax(0, 1fr);
+    gap: 3rem;
+    align-items: start;
+    padding-top: 2rem;
+  }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+  }
+
+  /* ---------- tab rail ---------- */
+
+  nav.rail {
+    position: sticky;
+    top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  @media (max-width: 900px) {
+    nav.rail { position: static; }
+  }
+
+  .rail-head {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--slate);
+    padding-bottom: 0.5rem;
+  }
+
+  .tab {
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: baseline;
+    width: 100%;
+    text-align: left;
+    padding: 0.7rem 0.85rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+
+  .tab:hover { background: var(--surface-2); }
+
+  .tab:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+
+  .tab[aria-selected="true"] {
+    background: var(--surface);
+    border-color: var(--rule);
+    box-shadow: inset 3px 0 0 var(--signal);
+  }
+
+  .tab .year {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--slate);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tab[aria-selected="true"] .year { color: var(--signal); }
+
+  .tab .who { font-weight: 500; }
+
+  .tab .what {
+    display: block;
+    font-size: var(--step--1);
+    color: var(--slate);
+    line-height: 1.35;
+    margin-top: 0.15rem;
+  }
+
+  /* ---------- panels ---------- */
+
+  .panel {
+    max-width: 70ch;
+    animation: rise 240ms ease-out;
+  }
+
+  @keyframes rise {
+    from { opacity: 0.4; transform: translateY(4px); }
+    to   { opacity: 1;   transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panel { animation: none; }
+  }
+
+  .panel h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: var(--step-3);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.75rem;
+  }
+
+  .cite {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    line-height: 1.65;
+    color: var(--slate);
+    padding: 0.85rem 0 1rem;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 2rem;
+    overflow-wrap: anywhere;
+  }
+
+  .cite .file { color: var(--ink); }
+
+  .panel h3 {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 2.25rem 0 0.75rem;
+  }
+
+  .panel p { margin: 0 0 1rem; }
+  .panel ul { margin: 0 0 1rem; padding-left: 1.15rem; }
+  .panel li { margin-bottom: 0.5rem; }
+
+  strong { font-weight: 600; }
+
+  /* ---------- equations ---------- */
+
+  .eq {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--signal);
+    border-radius: 2px;
+    padding: 1rem 1.1rem;
+    margin: 0 0 1rem;
+    overflow-x: auto;
+  }
+
+  .eq .math {
+    font-family: var(--serif);
+    font-size: var(--step-1);
+    white-space: nowrap;
+  }
+
+  .eq .math i { font-style: italic; }
+
+  .eq .note {
+    display: block;
+    font-family: var(--sans);
+    font-size: var(--step--1);
+    color: var(--slate);
+    line-height: 1.5;
+    margin-top: 0.55rem;
+    white-space: normal;
+  }
+
+  sub, sup {
+    font-family: var(--mono);
+    font-size: 0.62em;
+    letter-spacing: 0;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--surface-2);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+  }
+
+  /* ---------- quote ---------- */
+
+  blockquote {
+    margin: 0 0 1rem;
+    padding: 0 0 0 1.1rem;
+    border-left: 2px solid var(--rule);
+    font-family: var(--serif);
+    font-size: var(--step-1);
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  blockquote cite {
+    display: block;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-style: normal;
+    color: var(--slate);
+    margin-top: 0.5rem;
+  }
+
+  /* ---------- figures / numbers ---------- */
+
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 0 0 1rem;
+  }
+
+  .figures div {
+    background: var(--surface);
+    padding: 0.85rem 0.95rem;
+  }
+
+  .figures .v {
+    display: block;
+    font-family: var(--mono);
+    font-size: var(--step-2);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .figures .k {
+    display: block;
+    font-size: var(--step--1);
+    color: var(--slate);
+    line-height: 1.35;
+    margin-top: 0.3rem;
+  }
+
+  /* ---------- caveat ---------- */
+
+  .caveat {
+    background: var(--rust-soft);
+    border-left: 3px solid var(--rust);
+    padding: 0.9rem 1.1rem;
+    margin: 0 0 1rem;
+    font-size: var(--step-0);
+  }
+
+  .caveat p:last-child { margin-bottom: 0; }
+
+  /* ---------- relevance ---------- */
+
+  .relevance {
+    background: var(--signal-soft);
+    padding: 1.1rem 1.25rem;
+    margin: 0 0 1rem;
+    border-radius: 2px;
+  }
+
+  .relevance p:last-child { margin-bottom: 0; }
+
+  /* ---------- comparison table ---------- */
+
+  .scroller { overflow-x: auto; margin: 0 0 1.25rem; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 34rem;
+    font-size: var(--step--1);
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  thead th {
+    font-family: var(--mono);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--slate);
+    border-bottom: 1px solid var(--ink);
+    white-space: nowrap;
+  }
+
+  tbody th {
+    font-family: var(--mono);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  footer {
+    max-width: 70ch;
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step--1);
+    color: var(--slate);
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Thesis reading set &middot; articles/quantile_mapping</p>
+      <h1>Quantile Mapping for Climate Downscaling</h1>
+      <p class="standfirst">Five papers that define the method, its failure modes, and the two
+        repairs that keep a projected trend intact. Read alongside notebook&nbsp;03.</p>
+    </div>
+
+    <svg class="qq-sketch" width="190" height="150" viewBox="0 0 190 150" role="img"
+         aria-label="Sketch of a quantile–quantile plot: model quantiles curve above the one-to-one line.">
+      <!-- axes -->
+      <line x1="26" y1="124" x2="176" y2="124" stroke="var(--rule)" stroke-width="1"></line>
+      <line x1="26" y1="124" x2="26" y2="14" stroke="var(--rule)" stroke-width="1"></line>
+      <!-- 1:1 reference -->
+      <line x1="26" y1="124" x2="146" y2="14" stroke="var(--slate)" stroke-width="1"
+            stroke-dasharray="3 3"></line>
+      <!-- biased model quantiles -->
+      <path d="M26 124 C 62 112, 82 82, 100 58 S 128 24, 158 18" fill="none"
+            stroke="var(--signal)" stroke-width="2" stroke-linecap="round"></path>
+      <!-- correction arrow at one quantile -->
+      <line x1="100" y1="58" x2="100" y2="86" stroke="var(--rust)" stroke-width="1.5"></line>
+      <path d="M96 84 L100 90 L104 84 Z" fill="var(--rust)"></path>
+      <text x="26" y="140" fill="var(--slate)" font-family="IBM Plex Mono, monospace"
+            font-size="9">model quantile</text>
+      <text x="18" y="12" fill="var(--slate)" font-family="IBM Plex Mono, monospace"
+            font-size="9">obs</text>
+    </svg>
+  </header>
+
+  <div class="shell">
+
+    <nav class="rail" role="tablist" aria-label="Papers">
+      <p class="rail-head">Five papers</p>
+
+      <button class="tab" role="tab" id="tab-gud" aria-controls="p-gud" aria-selected="true">
+        <span class="year">2012</span>
+        <span><span class="who">Gudmundsson et&nbsp;al.</span>
+          <span class="what">What quantile mapping <em>is</em> — and which variant wins</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-mar" aria-controls="p-mar" aria-selected="false">
+        <span class="year">2013</span>
+        <span><span class="who">Maraun</span>
+          <span class="what">Why QM cannot downscale: the inflation problem</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-can" aria-controls="p-can" aria-selected="false">
+        <span class="year">2015</span>
+        <span><span class="who">Cannon et&nbsp;al.</span>
+          <span class="what">QM corrupts trends; QDM fixes it</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-swi" aria-controls="p-swi" aria-selected="false">
+        <span class="year">2017</span>
+        <span><span class="who">Switanek et&nbsp;al.</span>
+          <span class="what">Scaled distribution mapping, with a temperature recipe</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-lan" aria-controls="p-lan" aria-selected="false">
+        <span class="year">2019</span>
+        <span><span class="who">Lange</span>
+          <span class="what">ISIMIP3BASD: split bias adjustment from downscaling</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-reiter" aria-controls="p-reiter" aria-selected="false">
+        <span class="year">2018</span>
+        <span><span class="who">Reiter et&nbsp;al.</span>
+          <span class="what">Does subsampling help? The one direct test</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-ruff" aria-controls="p-ruff" aria-selected="false">
+        <span class="year">2012</span>
+        <span><span class="who">Ruff &amp; Neelin</span>
+          <span class="what">Temperature tails are not Gaussian</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-perron" aria-controls="p-perron" aria-selected="false">
+        <span class="year">2013</span>
+        <span><span class="who">Perron &amp; Sura</span>
+          <span class="what">Global skewness and kurtosis of daily fields</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-lehner" aria-controls="p-lehner" aria-selected="false">
+        <span class="year">2023</span>
+        <span><span class="who">Lehner et&nbsp;al.</span>
+          <span class="what">What monthly adjustment costs, and why 30 years</span></span>
+      </button>
+
+      <button class="tab" role="tab" id="tab-cmp" aria-controls="p-cmp" aria-selected="false">
+        <span class="year">&mdash;</span>
+        <span><span class="who">Side by side</span>
+          <span class="what">Which method preserves what</span></span>
+      </button>
+    </nav>
+
+    <main>
+
+      <!-- ================= GUDMUNDSSON ================= -->
+      <section class="panel" role="tabpanel" id="p-gud" aria-labelledby="tab-gud">
+        <h2>What quantile mapping is, and which variant actually wins</h2>
+        <p class="cite">Gudmundsson, L., Bremnes, J.&nbsp;B., Haugen, J.&nbsp;E., Engen-Skaugen, T. (2012).
+          Technical Note: Downscaling RCM precipitation to the station scale using statistical
+          transformations &mdash; a comparison of methods.
+          <em>Hydrol. Earth Syst. Sci.</em> 16, 3383&ndash;3390. doi:10.5194/hess-16-3383-2012 &middot; CC&nbsp;BY&nbsp;3.0<br>
+          <span class="file">Gudmundsson2012_QM_transformations_HESS.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>This is the definitional paper. It states quantile mapping as a probability integral
+            transform, sorts every published variant into three families, and then ranks them on
+            real data with cross-validation. It also gives our project its vocabulary: the authors
+            list eight names for the same method (&ldquo;quantile mapping&rdquo;, &ldquo;CDF matching&rdquo;,
+            &ldquo;distribution mapping&rdquo;, &hellip;) and settle on <em>statistical transformation</em>.
+            The companion R package <code>qmap</code> comes from this paper.</p>
+        </div>
+
+        <h3>Core method</h3>
+        <p>Find a function <em>h</em> that maps modelled values so their distribution matches the
+          observed one:</p>
+
+        <div class="eq">
+          <span class="math"><i>P</i><sub>o</sub> = <i>h</i>(<i>P</i><sub>m</sub>)</span>
+          <span class="note">Eq. 1 — the general statement. Deterministic: one modelled value
+            always gives one corrected value.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math"><i>P</i><sub>o</sub> = <i>F</i><sub>o</sub><sup>&minus;1</sup>(<i>F</i><sub>m</sub>(<i>P</i><sub>m</sub>))</span>
+          <span class="note">Eq. 2 — the working form. Push the modelled value through the modelled
+            CDF to get its non-exceedance probability, then read that probability off the observed
+            quantile function. This single line is quantile mapping.</span>
+        </div>
+
+        <p>The three families differ only in how <em>h</em> is approximated:</p>
+        <ul>
+          <li><strong>Distribution derived</strong> — assume theoretical CDFs (Bernoulli–Gamma,
+            Bernoulli–Weibull, Bernoulli–Lognormal) and fit them by maximum likelihood.</li>
+          <li><strong>Parametric</strong> — fit the q–q relation directly, e.g.
+            <span style="font-family:var(--serif)"><i>P̂</i><sub>o</sub> = <i>bP</i><sub>m</sub></span> (simple scaling),
+            <span style="font-family:var(--serif)"><i>a</i> + <i>bP</i><sub>m</sub></span>, or
+            <span style="font-family:var(--serif)"><i>b</i>(<i>P</i><sub>m</sub> &minus; <i>x</i>)<sup>c</sup></span>.</li>
+          <li><strong>Nonparametric</strong> — use the empirical CDFs. The paper assesses two:
+            <code>QUANT</code> tabulates empirical percentiles and interpolates linearly between
+            them, carrying the highest quantile's correction for values beyond the training range
+            (after Boé et al. 2007); <code>SSPLIN</code> fits a cubic smoothing spline through the
+            q–q cloud, with the smoothing parameter chosen by generalised cross-validation.
+            <em>Note:</em> <code>RQUANT</code>, often cited alongside these, is <strong>not</strong>
+            in this paper — it is a third nonparametric option in the authors' <code>qmap</code>
+            package, and should be cited to the package, not to the 2012 article.</li>
+        </ul>
+
+        <h3>Key numbers</h3>
+        <div class="figures">
+          <div><span class="v">82</span><span class="k">Norwegian precipitation stations, 1960–2000</span></div>
+          <div><span class="v">25&nbsp;km</span><span class="k">HIRHAM RCM, ERA-40 driven</span></div>
+          <div><span class="v">2</span><span class="k">Best methods, both nonparametric: SSPLINE and QUANT</span></div>
+        </div>
+        <p>Skill is scored as mean absolute error on the full distribution and on each decile
+          (MAE<sub>0.1</sub> … MAE<sub>1.0</sub>), all under cross-validation. Nonparametric
+          transformations win across the whole range, including the extreme percentiles. Parametric
+          forms with three or more free parameters come close; simple scaling does not.</p>
+
+        <blockquote>
+          &ldquo;these techniques should not be applied without checking their suitability for the
+          data under consideration&rdquo;
+          <cite>Gudmundsson et al. 2012, Conclusions</cite>
+        </blockquote>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Flexibility cuts both ways. The authors warn that nonparametric fits can overfit when
+            calibrated on short records, and that skill is not guaranteed if the projected climate
+            differs substantially from the calibration period. Both warnings apply directly to our
+            <code>14d</code> window scheme, where each window holds only 14 values.</p>
+        </div>
+      </section>
+
+      <!-- ================= MARAUN 2013 ================= -->
+      <section class="panel" role="tabpanel" id="p-mar" aria-labelledby="tab-mar" hidden>
+        <h2>Why quantile mapping cannot downscale</h2>
+        <p class="cite">Maraun, D. (2013). Bias Correction, Quantile Mapping, and Downscaling:
+          Revisiting the Inflation Issue. <em>J. Climate</em> 26, 2137&ndash;2143.
+          doi:10.1175/JCLI-D-12-00821.1<br>
+          <span class="file">Maraun2013_QM_InflationIssue_JClimate.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>This is the paper that questions the whole premise of our baseline, and it is the most
+            important one to read carefully. Maraun separates two jobs people ask quantile mapping to
+            do at once: <strong>correcting a bias</strong> (model and observations at the same
+            resolution) and <strong>downscaling</strong> (observations much finer than the model).
+            The first is defensible. The second, he argues, is not — it is the old variance
+            inflation mistake in new clothes. Our setup is exactly the second case: CMIP6 at ~1°
+            mapped onto ERA5-Land at 0.1°, roughly a hundred fine pixels per coarse cell.</p>
+        </div>
+
+        <h3>The argument</h3>
+        <p>Quantile mapping adjusts only the <em>marginal</em> distribution at each location. It adds
+          no new small-scale variability. So if you map a grid-box time series onto point data:</p>
+        <ul>
+          <li>The <strong>temporal structure</strong> of the corrected series is still the grid box's,
+            not the local scale's.</li>
+          <li>The <strong>spatial dependence</strong> between locations inside one grid box becomes
+            fully deterministic — every point in the cell is a fixed function of the same input.</li>
+          <li><strong>Area-mean extremes are overestimated</strong> and the drizzle effect is
+            overcorrected, because per-point corrected series are far too coherent when averaged
+            back up.</li>
+          <li><strong>Trends are altered</strong>, so projected changes in means and extremes are
+            misrepresented.</li>
+        </ul>
+        <p>The mechanism is von Storch's (1999) inflation critique: rescaling a series to match
+          observed variance wrongly assumes the predictor explains all of the local variance. The
+          remedy there was randomization; the remedy here is a <em>stochastic</em> bias correction.</p>
+
+        <h3>One sentence that matters for us</h3>
+        <blockquote>
+          &ldquo;The effect might be less important for temperature, as this variable has a much
+          higher spatial coherence&rdquo;
+          <cite>Maraun 2013, Conclusions</cite>
+        </blockquote>
+        <p>He adds that small-scale temperature variation mostly comes from orographic effects, which
+          he classes as correctable. That is a direct licence for our approach — a temperature
+          predictand, plus an explicit elevation term — but it is a caveat, not an endorsement, and
+          it should be quoted as such.</p>
+
+        <h3>Setup</h3>
+        <div class="figures">
+          <div><span class="v">25&nbsp;km</span><span class="k">REMO RCM, one grid box, Harz Mountains</span></div>
+          <div><span class="v">20</span><span class="k">Rain gauges inside that single box</span></div>
+          <div><span class="v">1961–2000</span><span class="k">ERA-40 driven, no separate validation period</span></div>
+        </div>
+        <p>Trends are tested twice: seasonal totals by linear regression, and seasonal maxima by a
+          GEV with time-dependent location and scale,
+          <span style="font-family:var(--serif)"><i>y</i><sub>i</sub> ~ GEV(<i>μ</i><sub>i</sub>, <i>σ</i><sub>i</sub>, <i>ξ</i>)</span>,
+          with <span style="font-family:var(--serif)"><i>μ</i><sub>i</sub> = <i>a</i><sub>μ</sub> + <i>b</i><sub>μ</sub><i>t</i><sub>i</sub></span>.</p>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>One grid box, one mountain region, precipitation only. Maraun notes he repeated the
+            analysis in flat terrain and with a second RCM with the same result, but the paper itself
+            is a targeted demonstration, not a survey.</p>
+          <p>Note his warning about spatial averaging: averaging neighbouring grid boxes to raise the
+            signal-to-noise ratio <em>widens</em> the scale gap and makes inflation worse.</p>
+        </div>
+      </section>
+
+      <!-- ================= CANNON ================= -->
+      <section class="panel" role="tabpanel" id="p-can" aria-labelledby="tab-can" hidden>
+        <h2>Quantile mapping corrupts projected trends</h2>
+        <p class="cite">Cannon, A.&nbsp;J., Sobie, S.&nbsp;R., Murdock, T.&nbsp;Q. (2015). Bias Correction of GCM
+          Precipitation by Quantile Mapping: How Well Do Methods Preserve Changes in Quantiles and
+          Extremes? <em>J. Climate</em> 28, 6938&ndash;6959. doi:10.1175/JCLI-D-14-00754.1<br>
+          <span class="file">Cannon2015_QDM_JClimate.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>The standard reference for <strong>quantile delta mapping (QDM)</strong>, and the clearest
+            statement of the trend problem. Plain QM builds its transfer function from the historical
+            period alone and ignores the future projection entirely. Apply it to a warming world and
+            the model's own climate change signal comes out distorted — sometimes wildly. Since our
+            future scope runs to 2081–2100, this decides whether the baseline we build can be used
+            for projections at all.</p>
+        </div>
+
+        <h3>Three algorithms, in order</h3>
+
+        <div class="eq">
+          <span class="math"><i>x̂</i><sub>m,p</sub>(<i>t</i>) = <i>F</i><sub>o,h</sub><sup>&minus;1</sup>{<i>F</i><sub>m,h</sub>[<i>x</i><sub>m,p</sub>(<i>t</i>)]}</span>
+          <span class="note">Eq. 1 — <strong>QM</strong>. Subscripts: o&nbsp;=&nbsp;observed,
+            m&nbsp;=&nbsp;modelled, h&nbsp;=&nbsp;historical, p&nbsp;=&nbsp;projected. With empirical
+            CDFs this is a lookup table interpolated from the historical q–q plot, and it is only
+            defined over the historical modelled range — anything beyond needs extrapolation.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math"><i>x̂</i><sub>m,p</sub>(<i>t</i>) = <i>F</i><sub>o,h</sub><sup>&minus;1</sup>{<i>F</i><sub>m,h</sub>[<i>x̄</i><sub>m,h</sub> &middot; <i>x</i><sub>m,p</sub>(<i>t</i>) / <i>x̄</i><sub>m,p</sub>(<i>t</i>)]} &middot; <i>x̄</i><sub>m,p</sub>(<i>t</i>) / <i>x̄</i><sub>m,h</sub></span>
+          <span class="note">Eq. 2 — <strong>DQM</strong>. Divide out the modelled trend in the
+            long-term mean, quantile map, then multiply it back. Preserves the trend in the mean, but
+            not necessarily in the tails. For an interval variable such as temperature, do this
+            additively rather than multiplicatively.</span>
+        </div>
+
+        <p><strong>QDM</strong> does the same thing quantile by quantile. Start from the
+          non-exceedance probability of the projected value in its <em>own</em> period:</p>
+
+        <div class="eq">
+          <span class="math">&tau;<sub>m,p</sub>(<i>t</i>) = <i>F</i><sub>m,p</sub><sup>(<i>t</i>)</sup>[<i>x</i><sub>m,p</sub>(<i>t</i>)]</span>
+          <span class="note">Eq. 3 — estimated from a time window around <i>t</i>.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math">&Delta;<sub>m</sub>(<i>t</i>) = <i>x</i><sub>m,p</sub>(<i>t</i>) / <i>F</i><sub>m,h</sub><sup>&minus;1</sup>[&tau;<sub>m,p</sub>(<i>t</i>)]</span>
+          <span class="note">Eq. 4 — the model's own relative change at that quantile. Worked example
+            from the paper: a 2065 value of 36.5 sits at the 99th percentile of the 2050s; the same
+            percentile in the historical run is 28.5; so Δ = 36.5&nbsp;/&nbsp;28.5 = 1.28.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math"><i>x̂</i><sub>m,p</sub>(<i>t</i>) = <i>F</i><sub>o,h</sub><sup>&minus;1</sup>[&tau;<sub>m,p</sub>(<i>t</i>)] &middot; &Delta;<sub>m</sub>(<i>t</i>)</span>
+          <span class="note">Eqs. 5–6 — bias correct that quantile against observations, then re-apply
+            the model's relative change on top. In the example: 22.6 × 1.28. Relative changes in
+            every quantile are preserved by construction.</span>
+        </div>
+
+        <h3>Key numbers</h3>
+        <p>Applied to CMIP5 daily precipitation over Canada, scored on ETCCDI extremes indices and a
+          GEV analysis of annual maxima. Projected relative change in the 20-year return value by the
+          2080s, at the worst locations:</p>
+        <div class="figures">
+          <div><span class="v">+120%</span><span class="k">Raw GCM — never exceeds this</span></div>
+          <div><span class="v">+140%</span><span class="k">QDM maximum</span></div>
+          <div><span class="v">+240%</span><span class="k">DQM maximum</span></div>
+          <div><span class="v">&gt;+1500%</span><span class="k">QM — inflated far past the model signal</span></div>
+        </div>
+        <p>Ranking on the extremes indices is consistent: QDM best, DQM close behind, QM
+          &ldquo;outperformed by a large margin&rdquo;. The damage is worst for long-period return values.</p>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Every method here still assumes <strong>bias stationarity</strong> — that the historical
+            error structure carries into the future. Cannon et al. explicitly place that question out
+            of scope and point to Maraun (2012) and Maraun et al. (2010).</p>
+          <p>QDM is not guaranteed to preserve changes in the <em>mean</em>, only in the quantiles;
+            DQM is the reverse. And the paper is about precipitation, so the multiplicative forms need
+            switching to additive for temperature.</p>
+        </div>
+      </section>
+
+      <!-- ================= SWITANEK ================= -->
+      <section class="panel" role="tabpanel" id="p-swi" aria-labelledby="tab-swi" hidden>
+        <h2>Scaled distribution mapping, with an explicit temperature recipe</h2>
+        <p class="cite">Switanek, M.&nbsp;B., Troch, P.&nbsp;A., Castro, C.&nbsp;L., Leuprecht, A., Chang, H.-I.,
+          Mukherjee, R., Demaria, E.&nbsp;M.&nbsp;C. (2017). Scaled distribution mapping: a bias correction
+          method that preserves raw climate model projected changes.
+          <em>Hydrol. Earth Syst. Sci.</em> 21, 2649&ndash;2666. doi:10.5194/hess-21-2649-2017 &middot; CC&nbsp;BY&nbsp;3.0<br>
+          <span class="file">Switanek2017_ScaledDistributionMapping_HESS.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>Two things make this the most directly usable paper of the five. First, it attacks the
+            assumption underneath plain QM head-on: the correction function is <em>not</em>
+            time-invariant, so QM has no justification for inflating or deflating any moment of the
+            climate change signal. Second — unlike Cannon et al. — it writes out a separate,
+            step-by-step algorithm <strong>for temperature</strong>, fitted with a normal
+            distribution. That is our variable.</p>
+        </div>
+
+        <h3>The temperature algorithm, step by step</h3>
+        <ol>
+          <li><strong>Detrend</strong> the raw modelled and observed series (a linear trend is used).
+            Trends are added back at the very end.</li>
+          <li><strong>Fit a normal distribution</strong> to the detrended observations, the raw
+            historical model, and the raw future model — so the parameters are just the empirical
+            mean and standard deviation. Clip CDF values to e.g. [0.0001, 0.9999], because rounding
+            to exactly 0 or 1 gives an infinite temperature.</li>
+          <li><strong>Scale</strong> the fitted future distribution against the fitted historical one,
+            at the probability of each future event.</li>
+          <li><strong>Recurrence intervals</strong> for all three sorted arrays.</li>
+          <li><strong>Rescale</strong> those recurrence intervals and convert back to CDF values.</li>
+          <li><strong>Bias correct</strong>, then reinsert values at their original dates and add the
+            modelled trend back in.</li>
+        </ol>
+
+        <div class="eq">
+          <span class="math">SFA = [ICDF<sub>MODF</sub>(CDF<sub>MODF</sub>) &minus; ICDF<sub>MODH</sub>(CDF<sub>MODF</sub>)] &times; (&sigma;<sub>OBS</sub> / &sigma;<sub>MODH</sub>)</span>
+          <span class="note">Eq. 8 — the array of <em>absolute</em> scaling factors (absolute, not
+            multiplicative, because temperature is an interval variable). The variance ratio
+            σ<sub>OBS</sub>/σ<sub>MODH</sub> rescales the model's signal to the observed spread.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math">RI = 1 / (0.5 &minus; |CDF &minus; 0.5|)</span>
+          <span class="note">Eq. 9 — recurrence interval. Note this differs from the precipitation
+            version (their Eq. 4) to reflect the two-tailed normal distribution.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math">CDF<sub>SCALED</sub> = 0.5 + sgn(CDF<sub>OBS</sub> &minus; 0.5) &middot; |0.5 &minus; 1/RI<sub>SCALED</sub>|</span>
+          <span class="note">Eq. 10 — map the rescaled recurrence interval back onto a probability,
+            keeping the correct tail.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math">BC<sub>INITIAL</sub> = ICDF<sub>OBS</sub>(CDF<sub>SCALED</sub>) + SFA</span>
+          <span class="note">Eq. 11 — the corrected value: read the observed quantile function at the
+            rescaled probability, then add the absolute scaling factor.</span>
+        </div>
+
+        <h3>Behaviour worth knowing</h3>
+        <ul>
+          <li>Where the historical model period and the correction period fully overlap, SDM returns
+            the observed distribution exactly — except that the trend is the model's, not the
+            observations'. That makes it a clean sanity check.</li>
+          <li>SDM outperforms QM, QDM, and DQM at preserving the raw model's projected changes for
+            both temperature and precipitation.</li>
+          <li>Precipitation and temperature differ in three places: multiplicative vs. absolute
+            scaling, wet-day subsetting vs. all values, and detrending (temperature only).</li>
+        </ul>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>The <strong>temporal evolution</strong> of the signal can be lost. Bias correcting
+            2011–2100 in one block against 1971–2000 reproduces the change over the whole block well,
+            but any decadal subset inside it may not. Their fix is to correct in shorter moving
+            blocks — a decade at a time, each calibrated on the preceding one.</p>
+          <p>SDM assumes normality for temperature. Fine for daily mean T2M in most months; check it
+            before trusting the tails in a strongly skewed season.</p>
+        </div>
+      </section>
+
+      <!-- ================= LANGE ================= -->
+      <section class="panel" role="tabpanel" id="p-lan" aria-labelledby="tab-lan" hidden>
+        <h2>Separating bias adjustment from downscaling</h2>
+        <p class="cite">Lange, S. (2019). Trend-preserving bias adjustment and statistical downscaling
+          with ISIMIP3BASD (v1.0). <em>Geosci. Model Dev.</em> 12, 3055&ndash;3070.
+          doi:10.5194/gmd-12-3055-2019 &middot; CC&nbsp;BY&nbsp;4.0<br>
+          <span class="file">Lange2019_ISIMIP3BASD_GMD.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>The production-grade answer to Maraun's objection, and the operational method behind
+            ISIMIP3. Lange's opening move is the one we should copy: when the observations are finer
+            than the model, bias adjustment is <strong>two distinct problems</strong> — correcting the
+            bias at the model's own resolution, and statistically downscaling to the observation grid.
+            Do them in that order, with different tools, and the inflation trap is avoided. The
+            downscaling step is also <em>stochastic</em>, which is exactly what Maraun asks for.</p>
+        </div>
+
+        <h3>Step 1 — trend-preserving bias adjustment</h3>
+        <p>Rather than correcting the future directly, Lange generates <strong>pseudo future
+          observations</strong>: the model's own quantile-by-quantile change signal transferred onto
+          the historical observations. Quantile mapping then runs between the historical and pseudo-future
+          observations, which is what makes the whole chain trend-preserving in <em>all</em> quantiles.</p>
+
+        <div class="eq">
+          <span class="math"><i>y</i> = <i>x</i> + &Delta;<sub>additive</sub>(<i>p</i>),&nbsp;&nbsp;
+            &Delta;<sub>additive</sub>(<i>p</i>) = <i>Q</i><sup>sim</sup><sub>fut</sub>(<i>p</i>) &minus; <i>Q</i><sup>sim</sup><sub>hist</sub>(<i>p</i>)</span>
+          <span class="note">Eqs. 1–2 — additive trend preservation, where
+            <i>x</i> is a historical observation, <i>p</i> = <i>F</i><sup>obs</sup><sub>hist</sub>(<i>x</i>)
+            its cumulative probability, and <i>y</i> the pseudo future observation.
+            <strong>This is the branch used for <code>tas</code></strong>, along with surface pressure
+            and downwelling longwave radiation.</span>
+        </div>
+
+        <div class="eq">
+          <span class="math"><i>y</i> = <i>x</i> &middot; &Delta;<sub>mult</sub>(<i>p</i>),&nbsp;&nbsp;
+            &Delta;<sub>mult</sub>(<i>p</i>) = max(0.01, min(100, <i>Q</i><sup>sim</sup><sub>fut</sub>(<i>p</i>) / <i>Q</i><sup>sim</sup><sub>hist</sub>(<i>p</i>)))</span>
+          <span class="note">Eqs. 3–5 — multiplicative branch, for precipitation, wind speed and
+            diurnal temperature range. The clip guards against a small historical quantile blowing up
+            the ratio; ratios are set to 1 where <i>Q</i><sup>sim</sup><sub>hist</sub>(<i>p</i>) = 0.</span>
+        </div>
+
+        <p>Bias adjustment itself is <strong>parametric</strong> quantile mapping — the paper argues
+          this is more robust in the extreme quantiles than nonparametric mapping — applied per
+          variable, per grid cell, per calendar month. Bounded variables get suitable distributions
+          (e.g. beta), and annual cycles of physical bounds are estimated with a 31-day running
+          window.</p>
+
+        <h3>Step 2 — stochastic statistical downscaling (MBCnSD)</h3>
+        <p>Once each coarse cell's distribution is unbiased, downscaling is treated as one more bias
+          adjustment problem: broadcast the coarse series to the <em>K</em> fine cells inside it, then
+          adjust the multivariate distribution of those <em>K</em> time series jointly. The engine is
+          Cannon's (2017) MBCn algorithm — repeated random rotations of the data followed by
+          univariate nonparametric quantile mapping along each rotated axis — modified so that the
+          coarse-scale mean is preserved.</p>
+
+        <div class="figures">
+          <div><span class="v">K</span><span class="k">Fine cells per coarse cell; each must nest exactly inside one</span></div>
+          <div><span class="v">2°→1°</span><span class="k">Their worked example, giving K = 4</span></div>
+          <div><span class="v">31&nbsp;d</span><span class="k">Running window for annual cycles of bounds</span></div>
+        </div>
+
+        <h3>The grid requirement — read this before adopting the method</h3>
+        <div class="caveat">
+          <p>MBCnSD requires every fine cell to sit <strong>entirely inside one</strong> coarse cell.
+            Our grids do not nest: CMIP6 at ~1° against ERA5-Land at 0.1° over 24–38°N, 30–38°E.
+            Lange's own remedy is the fix — interpolate the simulation, <em>before</em> bias
+            adjustment, onto an intermediate grid that is both compatible with the fine grid and close
+            in resolution to the original coarse grid. That is an extra regridding step our pipeline
+            does not have yet.</p>
+        </div>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Improvements are demonstrated by cross-validation, not against an independent future
+            observation — the usual and unavoidable limit for any bias adjustment claim.</p>
+          <p>Trend preservation is &ldquo;approximate&rdquo;, and the multiplicative branch is
+            deliberately abandoned where a large historical negative bias would produce
+            unrealistic values.</p>
+        </div>
+      </section>
+
+      <!-- ================= REITER ================= -->
+      <section class="panel" role="tabpanel" id="p-reiter" aria-labelledby="tab-reiter" hidden>
+        <h2>Does subsampling help? The one paper that tests it</h2>
+        <p class="cite">Reiter, P., Gutjahr, O., Schefczyk, L., Heinemann, G., Casper, M. (2018).
+          Does applying quantile mapping to subsamples improve the bias correction of daily
+          precipitation? <em>International Journal of Climatology</em> 38, 1623&ndash;1633.
+          doi:10.1002/joc.5283<br>
+          <span class="file">Reiter2018_QM_Subsamples_IJC.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>Our whole design rests on estimating distributions per <em>season</em> rather than
+            over the full year. Everyone stratifies, almost nobody argues for it, and this is the
+            paper that actually varies the timescale and measures the result. It also turns out to
+            contain the clearest published warning about the failure mode we hit.</p>
+        </div>
+
+        <h3>The question, stated precisely</h3>
+        <p>Quantile mapping corrects the whole distribution but not errors in the
+          <strong>annual cycle</strong>, which is why it is usually applied to temporal
+          subsamples. But subsampling shrinks the calibration sample. Does the sample-size loss
+          cancel the benefit?</p>
+
+        <div class="figures">
+          <div><span class="v">40</span><span class="k">Years of daily precipitation</span></div>
+          <div><span class="v">10</span><span class="k">RCM hindcast runs</span></div>
+          <div><span class="v">4</span><span class="k">QM methods, under cross-validation</span></div>
+          <div><span class="v">4</span><span class="k">Timescales: none, semi-annual, seasonal, monthly</span></div>
+        </div>
+
+        <h3>The answer</h3>
+        <blockquote>
+          &ldquo;Calibrating QM with subsamples instead of the calibration data as a whole
+          resulted in a clear benefit.&rdquo;
+          <cite>Reiter et al. 2018, Discussion</cite>
+        </blockquote>
+        <p>So stratify. But the useful part is <em>where the benefit stops</em>. The gain was
+          &ldquo;more distinct for the corrections of the calibration data than for the
+          corrections of the independent validation data&rdquo;. In sample, finer was always
+          better &mdash; &ldquo;the finer the QM subsampling timescale was chosen the better was
+          the performance&rdquo;. Out of sample the improvement flattened, and the optimum
+          <strong>depended on the method</strong>, landing somewhere between semi-annual and
+          monthly.</p>
+
+        <h3>The warning in Figure 4</h3>
+        <div class="caveat">
+          <p>At monthly resolution the <em>more complex</em> methods fitted the calibration
+            extremes well. Applied to independent data, those same transfer functions corrected
+            extremes &ldquo;to unrealistically high values&rdquo;.</p>
+          <p>Fine subsampling plus a flexible method equals overfitting, and it is invisible until
+            you score out of sample. This is the same failure mode Gudmundsson et al. (2012) warn
+            about for small calibration samples and Lehner et al. (2023) describe as
+            non-parametric QM depending more on the calibration period &mdash; and it is why our
+            own flexible methods retreat to their smoothest settings on a ten-year record.</p>
+        </div>
+
+        <h3>What we took from it</h3>
+        <ul>
+          <li><strong>Stratify</strong> &mdash; the benefit is real and demonstrated.</li>
+          <li><strong>Season, not month</strong>, on a ten-year record. The paper shows the
+            out-of-sample gain from going finer is small, while the overfitting risk is not.</li>
+          <li><strong>Score out of sample or not at all.</strong> In-sample scores would have
+            ranked the flexible methods first, which is exactly the trap.</li>
+        </ul>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Precipitation, not temperature, and RCM hindcasts rather than a GCM. Precipitation is
+            bounded at zero, intermittent and far more skewed, so the specific optimum does not
+            transfer &mdash; only the shape of the trade-off does. They also had 40 years where we
+            have 10, which pushes our own optimum coarser still.</p>
+        </div>
+      </section>
+
+      <!-- ================= RUFF ================= -->
+      <section class="panel" role="tabpanel" id="p-ruff" aria-labelledby="tab-ruff" hidden>
+        <h2>Temperature tails are not Gaussian, and it matters by an order of magnitude</h2>
+        <p class="cite">Ruff, T.&nbsp;W., Neelin, J.&nbsp;D. (2012). Long tails in regional surface
+          temperature probability distributions with implications for extremes under global
+          warming. <em>Geophysical Research Letters</em> 39, L04704.
+          doi:10.1029/2011GL050610<br>
+          <span class="file">Ruff2012_LongTails_GRL.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>Our distribution-derived transform fits a normal distribution to each side. This
+            paper is the evidence that the assumption fails in the tails, measured on station
+            records rather than argued from theory. It is the reason the normality check belongs
+            in the notebook as a measurement, and the reason the non-parametric transforms are
+            worth carrying in the comparison at all.</p>
+        </div>
+
+        <h3>What they did</h3>
+        <p>29 stations with long records across several climate regimes, from the NCDC archive,
+          and three variables at each: daily maximum, daily minimum and daily mean temperature.
+          Distribution tails were examined against a fitted Gaussian, separately for DJF and JJA.
+          The motivation came from earlier work showing that column water vapour and passive
+          tropospheric tracers have longer-than-Gaussian, roughly exponential tails.</p>
+
+        <h3>The finding</h3>
+        <blockquote>
+          &ldquo;non-Gaussian tails to be common in station measurements over a range of
+          locations and climate zones&rdquo;
+          <cite>Ruff &amp; Neelin 2012, Discussion and Conclusions</cite>
+        </blockquote>
+        <p>Departures go <strong>both ways</strong>. Some stations have longer-than-Gaussian,
+          approximately exponential tails; others have shorter-than-Gaussian tails, which the
+          authors note they cannot yet explain from the tracer-advection prototype and flag for
+          future work. The two cases have opposite consequences for how threshold exceedances
+          change under warming.</p>
+
+        <h3>The number worth quoting</h3>
+        <div class="figures">
+          <div><span class="v">30%</span><span class="k">Exceedance probability under the observed exponential tail</span></div>
+          <div><span class="v">0.85%</span><span class="k">The same threshold under a fitted Gaussian</span></div>
+          <div><span class="v">&times;35</span><span class="k">The factor by which normality misstates it</span></div>
+        </div>
+        <p>That is the cost of assuming normality where the tail is not normal, for one station
+          and one threshold. It is why the distribution-derived method should not be expected to
+          carry P5 and P90 as well as it carries the median.</p>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Station point measurements, not gridded reanalysis, and 29 stations is a survey
+            rather than a climatology — Perron and Sura (2013) is the global companion. None of
+            the stations are in our domain.</p>
+          <p>Note also what the paper is <em>about</em>: the behaviour of genuine extremes and
+            threshold exceedances. We report P5 and P90, which sit well inside the distribution,
+            so the effect on our numbers is real but much smaller than these headline figures.</p>
+        </div>
+      </section>
+
+      <!-- ================= PERRON ================= -->
+      <section class="panel" role="tabpanel" id="p-perron" aria-labelledby="tab-perron" hidden>
+        <h2>A global climatology of how non-Gaussian daily fields are</h2>
+        <p class="cite">Perron, M., Sura, P. (2013). Climatology of Non-Gaussian Atmospheric
+          Statistics. <em>J. Climate</em> 26, 1063&ndash;1083. doi:10.1175/JCLI-D-11-00504.1<br>
+          <span class="file">Perron2013_NonGaussian_JClimate.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>The reference our own skewness and kurtosis maps should be read against. It maps the
+            same two moments, for the same variable (air temperature), split the same way
+            (winter against summer), on 62 years of reanalysis — so it says whether what we
+            measure over the EMME domain is ordinary or unusual.</p>
+        </div>
+
+        <h3>What they did</h3>
+        <div class="figures">
+          <div><span class="v">62</span><span class="k">Years of daily NCEP&ndash;NCAR Reanalysis I</span></div>
+          <div><span class="v">9</span><span class="k">Variables, including air temperature</span></div>
+          <div><span class="v">2</span><span class="k">Seasons shown, DJF and JJA</span></div>
+        </div>
+        <p>Skewness and excess kurtosis — the third and fourth central moments, both zero for a
+          normal distribution — computed at every grid point over the whole record. Only
+          statistically significant values are plotted, and the moments are also zonally averaged
+          to show the vertical structure.</p>
+
+        <h3>The finding</h3>
+        <blockquote>
+          &ldquo;A common assumption in the earth sciences is the Gaussianity of data over time.
+          However, several independent studies in the past few decades have shown this assumption
+          to be mostly false.&rdquo;
+          <cite>Perron &amp; Sura 2013, Abstract</cite>
+        </blockquote>
+        <p>The practical value for us is the method rather than the conclusion: compute the two
+          moments per grid point, per season, map them, and treat departure from zero as the
+          measurement. That is exactly what our notebook does, which makes the comparison direct.</p>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>Reanalysis on a coarse grid, so it cannot speak to the 0.1&deg; scale we work at, and
+            the significance testing assumes independence between days that daily fields do not
+            have.</p>
+        </div>
+      </section>
+
+      <!-- ================= LEHNER ================= -->
+      <section class="panel" role="tabpanel" id="p-lehner" aria-labelledby="tab-lehner" hidden>
+        <h2>What monthly adjustment costs, and why thirty years is the norm</h2>
+        <p class="cite">Lehner, F., Nadeem, I., Formayer, H. (2023). Evaluating skills and issues
+          of quantile-based bias adjustment for climate change scenarios.
+          <em>Advances in Statistical Climatology, Meteorology and Oceanography</em> 9,
+          29&ndash;44. doi:10.5194/ascmo-9-29-2023 &middot; open access<br>
+          <span class="file">Lehner2023_QM_BiasAdjustment_ASCMO.pdf</span></p>
+
+        <h3>Why it matters here</h3>
+        <div class="relevance">
+          <p>Two sentences in this paper support two separate choices of ours, and a third
+            explains a result we did not expect. It is the most directly quotable reference for
+            the seasonal window, for the ten-year caveat, and for why our flexible methods keep
+            selecting their smoothest settings.</p>
+        </div>
+
+        <h3>On sub-annual stratification, and on calibration length</h3>
+        <blockquote>
+          &ldquo;The daily data of each grid cell of the model are adjusted separately with the
+          observations on a monthly basis. For the calibration data, a time period of 30 years is
+          typical, since the statistical distribution of data of a shorter time period can be very
+          noisy and a longer time period usually has pronounced climatological trends.&rdquo;
+          <cite>Lehner et al. 2023, Section 3</cite>
+        </blockquote>
+        <p>The first half is evidence that adjusting per grid cell per calendar month is
+          established practice, which is what we do at season level. The second half is the
+          cleanest published statement of our central limitation: we have <strong>ten</strong>
+          years, not thirty, and the paper names precisely the consequence — a noisy distribution.
+          It is also the argument for season over month, since season buys about 820 training days
+          against a month's 300.</p>
+
+        <h3>On why flexibility does not pay off on a short record</h3>
+        <blockquote>
+          &ldquo;non-parametric QM depends more on the calibration period than parametric QM&rdquo;
+          <cite>Lehner et al. 2023, Section 2</cite>
+        </blockquote>
+        <p>This predicts what we observe: QUANT selects very few lookup nodes and RQUANT selects
+          wide smoothing windows, both retreating towards the smooth end of their grids. The paper
+          also cites Switanek et al. (2017) for the view that extremes are corrected more robustly
+          by a parametric approach, "as the return level of the most extreme event is somewhat
+          random", and Theme&szlig;l et al. (2012) for the converse warning that parametric QM can
+          introduce new biases because the true distribution is unknown and varies by region and
+          season.</p>
+
+        <h3>Caveats</h3>
+        <div class="caveat">
+          <p>An evaluation paper rather than a methods paper: it does not test the stratification
+            choice against alternatives, and presents monthly adjustment as established practice
+            rather than justifying it. For a direct test see Reiter et al. (2018), which is the
+            one study that varies the subsampling timescale deliberately — and which is paywalled
+            and therefore not in this folder.</p>
+        </div>
+      </section>
+
+      <!-- ================= COMPARISON ================= -->
+      <section class="panel" role="tabpanel" id="p-cmp" aria-labelledby="tab-cmp" hidden>
+        <h2>Which method preserves what</h2>
+        <p class="cite">A reading map across the five PDFs in this folder. Sign convention in our own
+          code is <code>bias = x &minus; y</code> (predictor minus observation), which is the opposite
+          of the papers' usual model-minus-observation phrasing only in name, not in sign.<br>
+          <span class="file">articles/quantile_mapping/</span></p>
+
+        <h3>Method comparison</h3>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Method</th>
+                <th scope="col">Uses future run?</th>
+                <th scope="col">Preserves trend in</th>
+                <th scope="col">Stochastic?</th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">QM / EQM</th>
+                <td>No</td>
+                <td>Nothing — can inflate badly</td>
+                <td>No</td>
+                <td>Gudmundsson 2012</td>
+              </tr>
+              <tr>
+                <th scope="row">DQM</th>
+                <td>Mean only</td>
+                <td>The mean</td>
+                <td>No</td>
+                <td>Cannon 2015, Eq. 2</td>
+              </tr>
+              <tr>
+                <th scope="row">QDM</th>
+                <td>All quantiles</td>
+                <td>Relative change per quantile</td>
+                <td>No</td>
+                <td>Cannon 2015, Eqs. 3–6</td>
+              </tr>
+              <tr>
+                <th scope="row">SDM</th>
+                <td>All quantiles + event likelihood</td>
+                <td>Quantile changes, best of the four tested</td>
+                <td>No</td>
+                <td>Switanek 2017, Eqs. 8–11</td>
+              </tr>
+              <tr>
+                <th scope="row">ISIMIP3BASD</th>
+                <td>All quantiles, via pseudo-future obs</td>
+                <td>All quantiles (approximately)</td>
+                <td>Yes, in the downscaling step</td>
+                <td>Lange 2019</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Three things all five agree on</h3>
+        <ul>
+          <li><strong>The core transform is one line.</strong>
+            <span style="font-family:var(--serif)"><i>x̂</i> = <i>F</i><sub>obs</sub><sup>&minus;1</sup>(<i>F</i><sub>mod</sub>(<i>x</i>))</span>.
+            Everything else is a choice about how to estimate the two CDFs and what to do about the
+            future.</li>
+          <li><strong>Empirical CDFs beat fitted ones for pure bias correction</strong>
+            (Gudmundsson 2012) — but Lange (2019) prefers parametric fits precisely because the tails
+            of an empirical CDF are unstable, which is the same worry stated from the other side.</li>
+          <li><strong>Bias stationarity is assumed by all of them</strong> and defended by none.</li>
+        </ul>
+
+        <h3>What this means for notebook 03</h3>
+        <div class="relevance">
+          <p>Our current baseline is the diagnostic layer under plain QM: five coarse-to-fine
+            predictors × four window schemes × five percentiles, comparing distributions rather than
+            paired days. The reading set says three things about where it goes next.</p>
+          <p><strong>One.</strong> Comparing distributions instead of matched days is the right call
+            (Maraun 2013) — there is no day-to-day correspondence to regress on.</p>
+          <p><strong>Two.</strong> Plain QM across a ~10× resolution gap is inflation, not
+            downscaling. Temperature's spatial coherence and our explicit Δz term soften this, and
+            Maraun says so directly, but the point has to be stated in the write-up, not assumed
+            away.</p>
+          <p><strong>Three.</strong> Any step towards 2081–2100 needs a trend-preserving variant.
+            QDM (additive form) is the cheapest upgrade; SDM's temperature recipe is the closest
+            match to our variable; ISIMIP3BASD is the most complete, at the cost of an intermediate
+            nesting grid.</p>
+        </div>
+
+        <h3>A note on the 14-day window</h3>
+        <div class="caveat">
+          <p>A 14-day window holds 14 values, so its P5 and P90 are estimated from roughly one
+            observation each tail. Gudmundsson's overfitting warning and Cannon's extrapolation
+            problem both bite hardest there. State this caveat whenever short-window results are
+            reported.</p>
+        </div>
+      </section>
+
+      <footer>
+        <p>Five PDFs in <code>articles/quantile_mapping/</code>. Three are open access under
+          Creative Commons (Copernicus); two are publisher copies from AMS journals, kept locally for
+          personal research use. The directory is gitignored.</p>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+
+  function select(tab) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => select(tab));
+    tab.addEventListener('keydown', e => {
+      const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      next.focus();
+      select(next);
+    });
+  });
+</script>

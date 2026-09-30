@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper summaries</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/katex.min.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="Topics and papers">
+    <div class="rail-head">
+      <p class="eyebrow">Thesis reading set</p>
+      <h1>Paper summaries</h1>
+    </div>
+    <div id="nav"></div>
+  </nav>
+  <main class="main">
+    <div id="view" class="view" aria-live="polite">
+      <p class="msg">Loading&hellip;</p>
+    </div>
+  </main>
+</div>
+
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/katex.min.js"></script>
+<script src="vendor/auto-render.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
