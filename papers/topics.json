@@ -97,6 +97,23 @@
           "one_line": "What quantile-based adjustment can and cannot deliver; calibration length."
         }
       ]
+    },
+    {
+      "id": "climate_models",
+      "title": "Climate models and data",
+      "overview": "The datasets this project maps between, described by the people who built them. These papers are the authoritative account of how each product is produced, what it does and does not observe, and where its own error sits — which bounds what any downscaling result can mean.",
+      "papers": [
+        {
+          "file": "2021-munoz-sabater-era5-land.md",
+          "year": 2021,
+          "authors": "Munoz-Sabater, J., Dutra, E., Agusti-Panareda, A., Albergel, C., Arduini, G., Balsamo, G., Boussetta, S., Choulga, M., Harrigan, S., Hersbach, H., Martens, B., Miralles, D. G., Piles, M., Rodriguez-Fernandez, N. J., Zsoter, E., Buontempo, C., Thepaut, J.-N.",
+          "title": "ERA5-Land: a state-of-the-art global reanalysis dataset for land applications",
+          "venue": "Earth Syst. Sci. Data 13, 4349-4383",
+          "doi": "10.5194/essd-13-4349-2021",
+          "pdf": "MunozSabater2021_ERA5Land_ESSD.pdf",
+          "one_line": "The target dataset: how ERA5-Land is produced, and its own accuracy."
+        }
+      ]
     }
   ]
 }
